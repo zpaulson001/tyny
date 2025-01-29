@@ -1,0 +1,13 @@
+[project]
+name = "tyny"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.115.7",
+    "faster-whisper>=1.1.1",
+    "pydantic-settings>=2.7.1",
+    "websockets>=14.2",
+]
+
