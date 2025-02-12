@@ -1,60 +1,20 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from .config import logger
+from fastapi.templating import Jinja2Templates
+from app.routers import websocket
 
 app = FastAPI()
 
-html = """
-<!DOCTYPE html>
-<html>
-    <head>
-        <title>Chat</title>
-    </head>
-    <body>
-        <h1>WebSocket Chat</h1>
-        <form action="" onsubmit="sendMessage(event)">
-            <input type="text" id="messageText" autocomplete="off"/>
-            <button>Send</button>
-        </form>
-        <ul id='messages'>
-        </ul>
-        <script>
-            var ws = new WebSocket("ws://localhost:3000/ws");
-            ws.onmessage = function(event) {
-                var messages = document.getElementById('messages')
-                var message = document.createElement('li')
-                var content = document.createTextNode(event.data)
-                message.appendChild(content)
-                messages.appendChild(message)
-            };
-            function sendMessage(event) {
-                var input = document.getElementById("messageText")
-                ws.send(input.value)
-                input.value = ''
-                event.preventDefault()
-            }
-        </script>
-    </body>
-</html>
-"""
+# Include the websocket router
+app.include_router(websocket.router)
+
+# Initialize Jinja2 templates
+templates = Jinja2Templates(directory="app/templates")
 
 
-@app.get("/")
-async def get():
-    return HTMLResponse(html)
-
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        while True:
-            data = await websocket.receive_text()
-            await websocket.send_text(f"Message text was: {data}")
-    except WebSocketDisconnect:
-        logger.info("Client disconnected")
-    finally:
-        try:
-            await websocket.close()
-        except:
-            logger.info("Websocket connection closed")
+@app.get("/", response_class=HTMLResponse)
+async def get(request: Request):
+    # You can adjust the websocket_url based on your configuration
+    return templates.TemplateResponse(
+        "index.html", {"request": request, "websocket_url": "localhost:3000"}
+    )

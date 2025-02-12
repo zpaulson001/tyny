@@ -1,0 +1,254 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Audio Streaming Demo</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 40px auto;
+        padding: 20px;
+      }
+      .controls {
+        margin: 20px 0;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+        margin-right: 10px;
+      }
+      #status {
+        margin-top: 20px;
+        padding: 10px;
+        border-radius: 4px;
+      }
+      .recording {
+        background-color: #ffebee;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Audio Streaming Demo</h1>
+    <div class="controls">
+      <button id="startButton">Start Recording</button>
+      <button id="stopButton" disabled>Stop Recording</button>
+    </div>
+    <div id="status">Status: Ready</div>
+
+    <script>
+      const workletCode = `
+            class AudioProcessor extends AudioWorkletProcessor {
+                constructor() {
+                    super();
+                    this.isRecording = true;
+                    // Calculate buffer size for 100ms chunks
+                    // sampleRate gives us samples per second, so we multiply by 0.1 for 100ms
+                    console.log(sampleRate);
+                    this.bufferSize = Math.floor(sampleRate * 0.1);
+                    this.inputBuffer = new Float32Array(this.bufferSize);
+                    this.inputBufferIndex = 0;
+                }
+
+                process(inputs, outputs, parameters) {
+                    const input = inputs[0];
+                    if (input.length > 0) {
+                        const samples = input[0];
+                        
+                        // Fill our buffer
+                        for (let i = 0; i < samples.length; i++) {
+                            this.inputBuffer[this.inputBufferIndex++] = samples[i];
+                            
+                            // When buffer is full, send for resampling
+                            if (this.inputBufferIndex >= this.bufferSize) {
+                                // Clone the buffer before sending
+                                const bufferToSend = this.inputBuffer.slice();
+                                this.port.postMessage(bufferToSend.buffer, [bufferToSend.buffer]);
+                                
+                                // Reset buffer
+                                this.inputBuffer = new Float32Array(this.bufferSize);
+                                this.inputBufferIndex = 0;
+                            }
+                        }
+                    }
+                    return this.isRecording;
+                }
+            }
+            registerProcessor('audio-processor', AudioProcessor);
+        `;
+
+      const workletBlob = new Blob([workletCode], {
+        type: 'application/javascript',
+      });
+      const workletURL = URL.createObjectURL(workletBlob);
+
+      class ModernAudioStreamer {
+        constructor(serverUrl) {
+          this.serverUrl = serverUrl;
+          this.isRecording = false;
+          this.audioContext = null;
+          this.mediaStream = null;
+          this.workletNode = null;
+          this.websocket = null;
+          this.targetSampleRate = 16000;
+        }
+
+        async resampleAndSend(audioData) {
+          // Create an offline context at target sample rate
+          const offlineCtx = new OfflineAudioContext({
+            numberOfChannels: 1,
+            length: Math.ceil(
+              (audioData.length * this.targetSampleRate) /
+                this.audioContext.sampleRate
+            ),
+            sampleRate: this.targetSampleRate,
+          });
+
+          // Create buffer with original audio
+          const buffer = new AudioBuffer({
+            numberOfChannels: 1,
+            length: audioData.length,
+            sampleRate: this.audioContext.sampleRate,
+          });
+          buffer.copyToChannel(new Float32Array(audioData), 0);
+
+          // Create buffer source
+          const source = offlineCtx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(offlineCtx.destination);
+          source.start();
+
+          // Render and send
+          try {
+            const renderedBuffer = await offlineCtx.startRendering();
+            const resampled = renderedBuffer.getChannelData(0);
+
+            // Convert to 16-bit PCM
+            const pcmData = new Int16Array(resampled.length);
+            for (let i = 0; i < resampled.length; i++) {
+              pcmData[i] = Math.max(-1, Math.min(1, resampled[i])) * 0x7fff;
+            }
+
+            if (
+              this.isRecording &&
+              this.websocket.readyState === WebSocket.OPEN
+            ) {
+              this.websocket.send(pcmData.buffer);
+            }
+          } catch (err) {
+            console.error('Resampling error:', err);
+          }
+        }
+
+        async startStreaming() {
+          try {
+            // Initialize WebSocket
+            this.websocket = new WebSocket(this.serverUrl);
+
+            // Create audio context
+            this.audioContext = new AudioContext({
+              latencyHint: 'interactive',
+            });
+
+            console.log(
+              `Original sample rate: ${this.audioContext.sampleRate}`
+            );
+            console.log(`Target sample rate: ${this.targetSampleRate}`);
+
+            // Load and register the worklet
+            await this.audioContext.audioWorklet.addModule(workletURL);
+
+            // Get microphone access
+            this.mediaStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                channelCount: 1,
+                echoCancellation: false,
+                noiseSuppression: false,
+              },
+            });
+
+            // Create and connect nodes
+            const source = this.audioContext.createMediaStreamSource(
+              this.mediaStream
+            );
+            this.workletNode = new AudioWorkletNode(
+              this.audioContext,
+              'audio-processor'
+            );
+
+            // Handle messages from the worklet
+            this.workletNode.port.onmessage = async (event) => {
+              const audioData = new Float32Array(event.data);
+              await this.resampleAndSend(audioData);
+            };
+
+            // Connect the audio graph
+            source.connect(this.workletNode);
+
+            this.isRecording = true;
+            return true;
+          } catch (err) {
+            console.error('Error starting audio stream:', err);
+            throw err;
+          }
+        }
+
+        stopStreaming() {
+          this.isRecording = false;
+
+          if (this.mediaStream) {
+            this.mediaStream.getTracks().forEach((track) => track.stop());
+          }
+
+          if (this.workletNode) {
+            this.workletNode.disconnect();
+            this.workletNode = null;
+          }
+
+          if (this.audioContext) {
+            this.audioContext.close();
+            this.audioContext = null;
+          }
+
+          if (this.websocket) {
+            this.websocket.close();
+            this.websocket = null;
+          }
+        }
+      }
+
+      // UI Control
+      const startButton = document.getElementById('startButton');
+      const stopButton = document.getElementById('stopButton');
+      const status = document.getElementById('status');
+      let streamer = null;
+
+      startButton.addEventListener('click', async () => {
+        try {
+          streamer = new ModernAudioStreamer('ws://localhost:3000/ws');
+          await streamer.startStreaming();
+
+          startButton.disabled = true;
+          stopButton.disabled = false;
+          status.textContent = 'Status: Recording';
+          status.classList.add('recording');
+        } catch (err) {
+          status.textContent = `Status: Error - ${err.message}`;
+          console.error(err);
+        }
+      });
+
+      stopButton.addEventListener('click', () => {
+        if (streamer) {
+          streamer.stopStreaming();
+          streamer = null;
+        }
+
+        startButton.disabled = false;
+        stopButton.disabled = true;
+        status.textContent = 'Status: Ready';
+        status.classList.remove('recording');
+      });
+    </script>
+  </body>
+</html>

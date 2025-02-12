@@ -11,3 +11,12 @@ wheels/
 
 # Environment variables
 .env
+
+# Audio files
+*.wav
+*.webm
+*.ogg
+*.mp3
+*.m4a
+*.aac
+*.flac
