@@ -1,13 +1,13 @@
 import os
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from ..config import logger
+from app.config import logger
 import datetime
 import wave
 
 router = APIRouter()
 
-SAMPLING_RATE = int(os.getenv("SAMPLING_RATE"))
-MIN_CHUNK_SIZE = float(os.getenv("MIN_CHUNK_SIZE"))
+SAMPLING_RATE = int(os.getenv("SAMPLING_RATE", "16000"))  # Default to 16kHz
+MIN_CHUNK_SIZE = float(os.getenv("MIN_CHUNK_SIZE", "0.1"))  # Default to 100ms
 
 
 @router.websocket("/ws")
