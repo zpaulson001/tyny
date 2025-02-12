@@ -1,8 +1,10 @@
 import os
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+import numpy as np
 from app.config import logger
 import datetime
 import wave
+import mlx_whisper
 
 router = APIRouter()
 
@@ -22,12 +24,42 @@ async def websocket_endpoint(websocket: WebSocket):
 
             audio_chunks.extend(audio_data)  # Directly append bytes
             logger.info(f"Received audio chunk of size: {len(audio_data)} bytes")
+
+            # Send a message to the client to confirm the chunk was received
             await websocket.send_text(
                 f"Received audio chunk of size: {len(audio_data)} bytes"
             )
     except WebSocketDisconnect:
         logger.info("Client disconnected")
         if audio_chunks:  # Only save if we have audio data
+
+            # Librosa approach
+
+            # sf = soundfile.SoundFile(
+            #     io.BytesIO(audio_chunks),
+            #     channels=1,
+            #     endian="LITTLE",
+            #     samplerate=SAMPLING_RATE,
+            #     subtype="PCM_16",
+            #     format="RAW",
+            # )
+            # audio, _ = librosa.load(sf, sr=SAMPLING_RATE, dtype=np.float32)
+
+            # ----------------------------------------------------------------
+
+            # Numpy approach
+            # assumes input is already PCM_16 at 16kHz
+
+            # Convert bytes to numpy array of int16, then to float32
+            audio_array = np.frombuffer(audio_chunks, dtype=np.int16).astype(np.float32)
+            # Normalize to [-1, 1]
+            audio_array = audio_array / 32768.0
+
+            # ----------------------------------------------------------------
+
+            text = mlx_whisper.transcribe(audio_array)["text"]
+            logger.info(f"Transcription: {text}")
+
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"audio_recording_{timestamp}.wav"
 
