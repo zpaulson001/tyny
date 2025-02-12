@@ -42,7 +42,10 @@
                 constructor() {
                     super();
                     this.isRecording = true;
-                    this.bufferSize = 1600;
+                    // Calculate buffer size for 100ms chunks
+                    // sampleRate gives us samples per second, so we multiply by 0.1 for 100ms
+                    console.log(sampleRate);
+                    this.bufferSize = Math.floor(sampleRate * 0.1);
                     this.inputBuffer = new Float32Array(this.bufferSize);
                     this.inputBufferIndex = 0;
                 }
@@ -159,8 +162,8 @@
             this.mediaStream = await navigator.mediaDevices.getUserMedia({
               audio: {
                 channelCount: 1,
-                echoCancellation: true,
-                noiseSuppression: true,
+                echoCancellation: false,
+                noiseSuppression: false,
               },
             });
 
