@@ -1,6 +1,6 @@
 # Tyny - Real-Time Translation API
 
-An API for real-time audio transcription and translation using FastAPI and Faster Whisper.
+Tyny is a real-time audio transcription and translation API. It's built with FastAPI and leverages different Whisper-based models to handle transcription.
 
 ## Features
 
