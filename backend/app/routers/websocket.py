@@ -7,6 +7,7 @@ import mlx_whisper
 from typing import Any
 from collections import deque
 from numpy.typing import NDArray
+import wave
 
 router = APIRouter()
 
@@ -76,6 +77,7 @@ class ASRProcessor:
     def __init__(self):
         self.model = mlx_whisper
         self.last_trim_ts = 0.0
+        self.full_transcription = ""
         self.transcription_buffer = TranscriptionBuffer()
         self.audio_buffer = np.array([], dtype=np.float32)
         self.prompt_queue = PromptQueue()
@@ -94,6 +96,10 @@ class ASRProcessor:
                 "Buffer size exceeded 15 seconds, moving commited text to prompt queue"
             )
             self.prompt_queue.insert(self.transcription_buffer.committed)
+
+            self.full_transcription = (
+                self.full_transcription + self.transcription_buffer.committed_text
+            )
 
             logger.info(f"Prompt queue: {self.prompt_queue.prompt}")
             self.transcription_buffer.committed.clear()
@@ -163,9 +169,13 @@ async def websocket_endpoint(websocket: WebSocket):
 
             byte_buffer.clear()
 
-            # Send a message to the client to confirm the chunk was received
-            await websocket.send_text(
-                f"Received audio chunk of size: {len(audio_data)} bytes"
+            # Send a message to the client with committed and uncommitted texts
+            await websocket.send_json(
+                {
+                    "committed": asr.full_transcription
+                    + asr.transcription_buffer.committed_text,
+                    "uncommitted": asr.transcription_buffer.uncommitted_text,
+                }
             )
     except WebSocketDisconnect:
         logger.info("Client disconnected")
@@ -202,10 +212,10 @@ async def websocket_endpoint(websocket: WebSocket):
             filename = f"audio_recording_{timestamp}.wav"
 
             # Save as WAV file
-            # with wave.open(filename, "wb") as wav_file:
-            #     wav_file.setnchannels(1)  # Mono audio
-            #     wav_file.setsampwidth(2)  # 2 bytes per sample (16-bit)
-            #     wav_file.setframerate(SAMPLING_RATE)
-            #     wav_file.writeframes(audio_chunks)
+            with wave.open(filename, "wb") as wav_file:
+                wav_file.setnchannels(1)  # Mono audio
+                wav_file.setsampwidth(2)  # 2 bytes per sample (16-bit)
+                wav_file.setframerate(SAMPLING_RATE)
+                wav_file.writeframes(full_audio)
 
             logger.info(f"Saved audio recording to {filename}")
