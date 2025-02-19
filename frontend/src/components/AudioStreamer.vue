@@ -2,7 +2,6 @@
   <div class="audio-streamer">
     <Toolbar>
       <template #start>
-        <div v-if="isRecording" class="recording-indicator"></div>
         <span>Audio Streaming Demo</span>
       </template>
       <template #end>
@@ -339,13 +338,6 @@ onUnmounted(() => {
   margin: 0;
 }
 
-.recording-indicator {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background-color: #ff0000;
-  animation: blink 1s infinite;
-}
 
 @keyframes blink {
   0% {
