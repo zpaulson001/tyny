@@ -1,0 +1,7 @@
+{
+  "folders": [{ "path": "backend" }, { "path": "frontend" }],
+  "settings": {
+    "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+    "python.terminal.activateEnvironment": true,
+  },
+}
