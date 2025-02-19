@@ -20,7 +20,7 @@ Tyny is a real-time audio transcription and translation API. It's built with Fas
 - ✅ WebSocket endpoint
 - ✅ Real-time audio streaming from browser to server in 100ms chunks (save chunks as WAV files on WebSocket disconnect)
 - ✅ Whisper model transcription
-- 🚧 Build out frontend playground for testing and demonstration
+- ✅ Build basic playground for testing and demonstration
 - 📝 Translation service integration
 - 📝 Build script to stream audio files to the server for testing and evaluation
 - 📝 Proper frontend app
