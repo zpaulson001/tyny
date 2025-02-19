@@ -6,9 +6,18 @@
         <span>Audio Streaming Demo</span>
       </template>
       <template #end>
-        <Select class="selected-device" v-model="selectedDevice" :options="audioDevices" optionLabel="label"
-          placeholder="Select Audio Device" :disabled="isRecording">
-        </Select>
+        <IftaLabel>
+          <InputNumber inputId="min-chunk-input" class="min-chunk-input" v-model="minChunkValue"
+            :min-fraction-digits="0" :max-fraction-digits="1" :min="0.1" :max="10" :step="0.1" :disabled="isRecording"
+            showButtons /><label for="min-chunk-input">Min Chunk Size (seconds)</label>
+        </IftaLabel>
+
+        <IftaLabel>
+          <Select class="selected-device" v-model="selectedDevice" :options="audioDevices" optionLabel="label"
+            placeholder="Select Audio Device" :disabled="isRecording">
+          </Select>
+          <label for="selected-device">Audio Device</label>
+        </IftaLabel>
         <ButtonGroup>
           <Button :icon="isRecording ? 'pi pi-stop' : 'pi pi-microphone'"
             :severity="isRecording ? 'danger' : 'secondary'" @click="toggleRecording" :loading="isLoading"
@@ -23,14 +32,8 @@
 
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue';
-import Toolbar from 'primevue/toolbar';
-import Button from 'primevue/button';
 import useTranscriptionStore from '@/stores/transcriptionStore';
-
-type AudioDevice = {
-  label: string;
-  deviceId: string;
-}
+import { watch } from 'vue';
 
 const isRecording = ref(false);
 const isLoading = ref(false);
@@ -42,7 +45,6 @@ let streamer: ModernAudioStreamer | null = null;
 const audioDevices = ref<AudioDevice[]>([]);
 const selectedDevice = ref<AudioDevice | null>(null);
 
-import { watch } from 'vue';
 
 watch(audioDevices, (newDevices) => {
   console.log('Audio devices updated:', newDevices);
@@ -52,19 +54,23 @@ watch(selectedDevice, (newDevice) => {
   console.log('Selected device changed:', newDevice);
 });
 
+const minChunkValue = ref(1.0); // Default value of 1.0
+
+type AudioDevice = {
+  label: string;
+  deviceId: string;
+}
 
 const handleReset = () => {
   transcriptionStore.committed = '';
   transcriptionStore.uncommitted = '';
   streamer?.disconnect();
-  streamer?.connect();
 }
 
 const fetchAudioDevices = async (): Promise<AudioDevice[]> => {
   const devices = await navigator.mediaDevices.enumerateDevices();
   return devices.filter(device => device.kind === 'audioinput').map(device => ({ label: device.label, deviceId: device.deviceId }));
 }
-
 
 // Add this interface before the ModernAudioStreamer class
 interface TranscriptionResponse {
@@ -73,7 +79,7 @@ interface TranscriptionResponse {
 }
 
 class ModernAudioStreamer {
-  private serverUrl: string;
+  private _serverUrl: string;
   private isRecording: boolean;
   private audioContext: AudioContext | null;
   private mediaStream: MediaStream | null;
@@ -82,7 +88,7 @@ class ModernAudioStreamer {
   private targetSampleRate: number;
 
   constructor(serverUrl: string) {
-    this.serverUrl = serverUrl;
+    this._serverUrl = serverUrl;
     this.isRecording = false;
     this.audioContext = null;
     this.mediaStream = null;
@@ -91,6 +97,14 @@ class ModernAudioStreamer {
     this.targetSampleRate = 16000;
 
 
+  }
+
+  get isConnected(): boolean {
+    return this.websocket?.readyState === WebSocket.OPEN;
+  }
+
+  set serverUrl(url: string) {
+    this._serverUrl = url;
   }
 
   private handleWebSocketMessage(event: MessageEvent) {
@@ -153,7 +167,7 @@ class ModernAudioStreamer {
 
   async connect() {
     if (!this.websocket) {
-      this.websocket = new WebSocket(this.serverUrl);
+      this.websocket = new WebSocket(this._serverUrl);
       return new Promise((resolve, reject) => {
         if (!this.websocket) return reject(new Error('WebSocket not initialized'));
 
@@ -168,7 +182,10 @@ class ModernAudioStreamer {
   async startStreaming() {
     try {
       if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
-        throw new Error('WebSocket not connected');
+        await this.connect();
+        if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
+          throw new Error('WebSocket not connected');
+        }
       }
 
       this.audioContext = new AudioContext({
@@ -234,11 +251,10 @@ class ModernAudioStreamer {
   }
 }
 
-streamer = new ModernAudioStreamer('ws://localhost:3000/ws');
+streamer = new ModernAudioStreamer(`ws://localhost:3000/ws?min_chunk=${minChunkValue.value}`);
 
 (async () => {
   try {
-    await streamer.connect();
     statusMessage.value = 'Connected';
 
     // Request microphone permissions on load
@@ -284,6 +300,16 @@ const toggleRecording = async () => {
     isLoading.value = false;
   }
 };
+
+// Add this watch after the other watch statements
+watch(minChunkValue, async (newValue) => {
+  if (streamer?.isConnected) {
+    // Disconnect and reconnect with new chunk value
+    streamer.disconnect();
+    streamer.serverUrl = `ws://localhost:3000/ws?min_chunk_size=${newValue}`;
+    await streamer.connect();
+  }
+});
 
 onUnmounted(() => {
   if (streamer) {

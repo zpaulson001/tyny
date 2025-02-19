@@ -12,6 +12,8 @@ import ButtonGroup from 'primevue/buttongroup';
 import Select from 'primevue/select';
 import Message from 'primevue/message';
 import Toolbar from 'primevue/toolbar';
+import InputNumber from 'primevue/inputnumber';
+import IftaLabel from 'primevue/iftalabel';
 import AudioStreamer from '@/components/AudioStreamer.vue';
 import TranscriptionBox from '@/components/TranscriptionBox.vue';
 
@@ -35,6 +37,8 @@ app.component('ButtonGroup', ButtonGroup);
 app.component('Select', Select);
 app.component('Message', Message);
 app.component('Toolbar', Toolbar);
+app.component('InputNumber', InputNumber);
+app.component('IftaLabel', IftaLabel);
 app.component('TranscriptionBox', TranscriptionBox);
 app.component('AudioStreamer', AudioStreamer);
 app.mount('#app');

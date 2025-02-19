@@ -1,10 +1,10 @@
 import os
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 import numpy as np
 from app.config import logger
 import datetime
 import mlx_whisper
-from typing import Any
+from typing import Annotated, Any
 from collections import deque
 from numpy.typing import NDArray
 import wave
@@ -12,7 +12,6 @@ import wave
 router = APIRouter()
 
 SAMPLING_RATE = int(os.getenv("SAMPLING_RATE", "16000"))  # Default to 16kHz
-MIN_CHUNK_SIZE = 0.5
 BIT_DEPTH = 16
 BYTES_PER_SAMPLE = BIT_DEPTH / 8
 
@@ -120,7 +119,9 @@ class ASRProcessor:
 
     def _transcribe(self, audio_array: NDArray[np.float32]):
         return self.model.transcribe(
-            audio_array, word_timestamps=True, initial_prompt=self.prompt_queue.prompt
+            audio_array,
+            word_timestamps=True,
+            initial_prompt=self.prompt_queue.prompt,
         ).get("segments")
 
     def _get_word_timestamps(self, segments: Any):
@@ -128,16 +129,18 @@ class ASRProcessor:
             (word["start"], word["end"], word["word"])
             for segment in segments
             for word in segment.get("words", [])
-            if segment.get("no_speech_prob", 0) <= 0.9
+            if segment.get("no_speech_prob", 0) <= 0.8
         ]
 
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(
+    websocket: WebSocket, min_chunk_size: Annotated[float, Query()] = 1.0
+):
     await websocket.accept()
     byte_buffer = bytearray()
     asr = ASRProcessor()
-    full_audio = np.array([], dtype=np.float32)
+    full_audio = bytearray()
 
     try:
         while True:
@@ -146,18 +149,17 @@ async def websocket_endpoint(websocket: WebSocket):
                 continue
 
             byte_buffer.extend(audio_data)
+            full_audio.extend(audio_data)
             logger.info(f"Buffer size: {len(byte_buffer)} bytes")
             logger.info(f"Received audio chunk of size: {len(audio_data)} bytes")
 
-            if len(byte_buffer) < SAMPLING_RATE * BYTES_PER_SAMPLE * MIN_CHUNK_SIZE:
+            if len(byte_buffer) < SAMPLING_RATE * BYTES_PER_SAMPLE * min_chunk_size:
                 continue
 
             # Convert buffer to numpy array and append to audio_chunks
             new_chunk = (
                 np.frombuffer(byte_buffer, dtype=np.int16).astype(np.float32) / 32768.0
             )
-
-            full_audio = np.concatenate([full_audio, new_chunk])
 
             asr.process_new_chunk(new_chunk)
 
@@ -205,7 +207,10 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # ----------------------------------------------------------------
 
-            text = mlx_whisper.transcribe(full_audio)["text"]
+            full_audio_array = (
+                np.frombuffer(full_audio, dtype=np.int16).astype(np.float32) / 32768.0
+            )
+            text = mlx_whisper.transcribe(full_audio_array)["text"]
             logger.info(f"Transcription: {text}")
 
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -214,7 +219,9 @@ async def websocket_endpoint(websocket: WebSocket):
             # Save as WAV file
             with wave.open(filename, "wb") as wav_file:
                 wav_file.setnchannels(1)  # Mono audio
-                wav_file.setsampwidth(2)  # 2 bytes per sample (16-bit)
+                wav_file.setsampwidth(
+                    int(BYTES_PER_SAMPLE)
+                )  # 2 bytes per sample (16-bit)
                 wav_file.setframerate(SAMPLING_RATE)
                 wav_file.writeframes(full_audio)
 
