@@ -47,7 +47,9 @@ LANGUAGE_MAP = {
     "uk": "Ukrainian",
     "ur": "Urdu",
     "vi": "Vietnamese",
-    "zh": "Chinese",
+    "zh": "Chinese - Simplified Characters",
+    "zh-CN": "Chinese - Simplified Characters",
+    "zh-TW": "Chinese - Traditional Characters",
 }
 
 LanguageCode = Literal[
@@ -96,6 +98,8 @@ LanguageCode = Literal[
     "ur",
     "vi",
     "zh",
+    "zh-CN",
+    "zh-TW",
 ]
 
 
@@ -108,7 +112,7 @@ class TranslationService:
         self.model = init_chat_model(model=model_name, model_provider=model_provider)
         self.model_name = model_name
         self.model_provider = model_provider
-        self.system_prompt = "You are an expert translator. You will be given a text in a source language and you need to translate it into {target_language}.Note that the souce text will have small errors in puncutation in grammar and punctuation and may be missing words. Do your best to translate the text as accurately as possible without adding any additional information or commentary."
+        self.system_prompt = "You are an expert translator. You will be given a text in a source language and you need to translate it into {target_language}.Note that the souce text will have small errors in puncutation in grammar and punctuation and may be missing words. Do your best to translate the text as accurately as possible without adding any additional information or commentary. Output only the translation, nothing more."
         self.prompt_template = ChatPromptTemplate.from_messages(
             [
                 ("system", self.system_prompt),
