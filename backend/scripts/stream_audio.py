@@ -34,6 +34,18 @@ async def stream_audio(websocket, audio_path):
     for i in range(0, len(audio_data), chunk_samples):
         chunk = audio_data[i : i + chunk_samples]
         await websocket.send(chunk.tobytes())
+
+        # Receive and log any response from the server with timeout
+        try:
+            response = await asyncio.wait_for(
+                websocket.recv(), timeout=0.01
+            )  # 10ms timeout
+            print(f"Received from server: {response}")
+        except asyncio.TimeoutError:
+            pass  # No response within timeout
+        except websockets.exceptions.WebSocketException:
+            pass  # Connection error
+
         await asyncio.sleep(0.1)  # Wait 100ms between chunks
 
 
