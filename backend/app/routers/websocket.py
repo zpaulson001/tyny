@@ -1,18 +1,23 @@
 import os
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 import numpy as np
 from app.config import logger
 import datetime
-import mlx_whisper
+import mlx_whisper  # type: ignore
 from typing import Annotated, Any
 from collections import deque
 from numpy.typing import NDArray
 import wave
+import asyncio
+import torch
+
+from app.services.translation import LanguageCode, TranslationService
 
 router = APIRouter()
 
 SAMPLING_RATE = int(os.getenv("SAMPLING_RATE", "16000"))  # Default to 16kHz
 BIT_DEPTH = 16
+SILENCE_THRESHOLD = 2.0
 BYTES_PER_SAMPLE = BIT_DEPTH / 8
 
 
@@ -251,9 +256,57 @@ class TimeSliceASRProcessor:
         ]
 
 
+class SileroVADService:
+    def __init__(self):
+        self.model = None
+        self.utils = None
+
+    async def initialize(self):
+        if self.model is None:
+            self.model, self.utils = torch.hub.load(
+                repo_or_dir="snakers4/silero-vad",
+                model="silero_vad",
+                force_reload=True,
+                onnx=False,
+            )
+
+    def get_speech_prob(self, audio_chunk, sampling_rate):
+        WINDOW_SIZE = 512  # Process audio in chunks of 512 samples
+        max_speech_prob = 0.0
+
+        # Process audio in windows of 512 samples
+        for i in range(0, len(audio_chunk), WINDOW_SIZE):
+            window = audio_chunk[i : i + WINDOW_SIZE]
+
+            if len(window) < WINDOW_SIZE:
+                break
+
+            # Convert window to PyTorch tensor
+            window_tensor = torch.from_numpy(window).float()
+
+            # Get speech probability for this window
+            prob = self.model(window_tensor, sampling_rate).item()
+            max_speech_prob = prob if prob > max_speech_prob else max_speech_prob
+
+        return max_speech_prob
+
+
+# Create a global instance
+vad_service = SileroVADService()
+
+
+# Dependency to ensure model is loaded
+async def get_vad_service():
+    await vad_service.initialize()
+    return vad_service
+
+
 @router.websocket("/ws")
 async def websocket_endpoint(
-    websocket: WebSocket, min_chunk_size: Annotated[float, Query()] = 1.0
+    websocket: WebSocket,
+    vad: SileroVADService = Depends(get_vad_service),
+    min_chunk_size: Annotated[float, Query()] = 1.0,
+    language: Annotated[LanguageCode | None, Query()] = None,
 ):
     await websocket.accept()
     samples = np.array([], dtype=np.float32)
@@ -261,6 +314,7 @@ async def websocket_endpoint(
     prev_buffer = np.array([], dtype=np.float32)
     asr = FeedbackASRProcessor()
     full_audio = bytearray()
+    time_wout_speech = 0.0
 
     try:
         while True:
@@ -268,28 +322,46 @@ async def websocket_endpoint(
             if not audio_data:
                 continue
 
-            byte_buffer.extend(audio_data)
-            full_audio.extend(audio_data)
-            logger.info(f"Buffer size: {len(byte_buffer)} bytes")
-            logger.info(f"Received audio chunk of size: {len(audio_data)} bytes")
+            new_chunk = (
+                np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
+            )
 
-            if len(byte_buffer) < SAMPLING_RATE * BYTES_PER_SAMPLE * min_chunk_size:
+            prob = vad.get_speech_prob(
+                new_chunk,
+                SAMPLING_RATE,
+            )
+            logger.info(f"Probability of speech: {prob}")
+
+            if prob < 0.9:
+                time_wout_speech = time_wout_speech + len(new_chunk) / SAMPLING_RATE
+                prev_buffer = np.concatenate([prev_buffer, new_chunk])
+                if len(prev_buffer) > PREV_N_SECONDS * SAMPLING_RATE:
+                    prev_buffer = prev_buffer[-int(PREV_N_SECONDS * SAMPLING_RATE) :]
+            else:
+                if time_wout_speech > SILENCE_THRESHOLD:
+                    new_chunk = np.concatenate([prev_buffer, new_chunk])
+                    audio_data = (new_chunk * 32768.0).astype(np.int16).tobytes()
+                    prev_buffer = np.array([], dtype=np.float32)
+                time_wout_speech = 0.0
+
+            logger.info(f"Time without speech: {time_wout_speech}")
+
+            if time_wout_speech > SILENCE_THRESHOLD:
+                logger.info("Silence detected, continuing")
                 continue
 
-            # Convert buffer to numpy array and append to audio_chunks
-            new_chunk = (
-                np.frombuffer(byte_buffer, dtype=np.int16).astype(np.float32) / 32768.0
-            )
+            samples = np.concatenate([samples, new_chunk])
+            full_audio.extend(audio_data)
 
-            asr.process_new_chunk(new_chunk)
+            logger.info(f"Buffer size: {len(samples)} samples")
+            logger.info(f"Received audio chunk of size: {len(audio_data)} bytes")
 
-            logger.info(f"Text committed: {asr.transcription_buffer.committed_text}")
-            logger.info(
-                f"Text uncommitted: {asr.transcription_buffer.uncommitted_text}"
-            )
-            logger.info(f"Last confirmed: {asr.transcription_buffer.last_confirmed_ts}")
+            if len(samples) < SAMPLING_RATE * min_chunk_size:
+                continue
 
-            byte_buffer.clear()
+            asr.process_new_chunk(samples)
+
+            samples = np.array([], dtype=np.float32)
 
             # Send a message to the client with committed and uncommitted texts
             await websocket.send_json(
