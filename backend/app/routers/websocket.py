@@ -366,11 +366,35 @@ async def websocket_endpoint(
             # Send a message to the client with committed and uncommitted texts
             await websocket.send_json(
                 {
-                    "committed": asr.full_transcription
-                    + asr.transcription_buffer.committed_text,
-                    "uncommitted": asr.transcription_buffer.uncommitted_text,
+                    "event": "transcription",
+                    "data": {
+                        "committed": asr.transcription_buffer.committed_text,
+                        "uncommitted": asr.transcription_buffer.uncommitted_text,
+                    },
                 }
             )
+
+            if language:
+                translation_service = TranslationService()
+
+                # Create and run translation task
+                if asr.transcription_buffer.committed_text:
+                    asyncio.create_task(
+                        translation_service.translate(
+                            text=asr.transcription_buffer.committed_text,
+                            target_language=language,
+                            done_callback=lambda text: websocket.send_json(
+                                {
+                                    "event": "translation",
+                                    "data": {
+                                        "text": text,
+                                        "language": language,
+                                    },
+                                }
+                            ),
+                        )
+                    )
+
     except WebSocketDisconnect:
         logger.info("Client disconnected")
         if len(full_audio) > 0:  # Only save if we have audio data
@@ -404,6 +428,12 @@ async def websocket_endpoint(
             )
             text = mlx_whisper.transcribe(full_audio_array)["text"]
             logger.info(f"Transcription: {text}")
+
+            translation_service = TranslationService()
+            translated_text = await translation_service.translate(
+                text=text, target_language="zh"
+            )
+            logger.info(f"Translated text: {translated_text}")
 
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"audio_recording_{timestamp}.wav"

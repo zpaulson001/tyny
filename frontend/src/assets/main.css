@@ -25,3 +25,8 @@ body {
   width: 100vw;
   border: 1px solid green;
 }
+
+#app {
+  height: 100%;
+  width: 100%;
+}

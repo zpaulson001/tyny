@@ -16,7 +16,7 @@ import InputNumber from 'primevue/inputnumber';
 import IftaLabel from 'primevue/iftalabel';
 import AudioStreamer from '@/components/AudioStreamer.vue';
 import TranscriptionBox from '@/components/TranscriptionBox.vue';
-
+import TranslationBox from '@/components/TranslationBox.vue';
 import 'primeicons/primeicons.css';
 
 const app = createApp(App);
@@ -40,5 +40,6 @@ app.component('Toolbar', Toolbar);
 app.component('InputNumber', InputNumber);
 app.component('IftaLabel', IftaLabel);
 app.component('TranscriptionBox', TranscriptionBox);
+app.component('TranslationBox', TranslationBox);
 app.component('AudioStreamer', AudioStreamer);
 app.mount('#app');

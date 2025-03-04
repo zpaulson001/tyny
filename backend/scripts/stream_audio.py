@@ -49,12 +49,13 @@ async def stream_audio(websocket, audio_path):
         await asyncio.sleep(0.1)  # Wait 100ms between chunks
 
 
-async def main(audio_path):
-    uri = f"ws://localhost:{os.getenv('PORT', 3000)}/ws"
+async def main(audio_path, language):
+    uri = f"ws://localhost:{os.getenv('PORT', 3000)}/ws?language={language}"
     try:
         async with websockets.connect(uri) as websocket:
             print(f"Connected to {uri}")
             print(f"Streaming audio file: {audio_path}")
+            print(f"Target language: {language}")
             await stream_audio(websocket, audio_path)
             print("Streaming completed")
     except websockets.exceptions.ConnectionClosed:
@@ -74,6 +75,13 @@ if __name__ == "__main__":
         default="Your_Plans_Gods_Plans.mp3",
         help="Name of the audio file in the audio_files folder (defaults to Your_Plans_Gods_Plans.mp3)",
     )
+    parser.add_argument(
+        "--language",
+        "-l",
+        type=str,
+        default="zh",
+        help="Target language for translation (e.g., 'es' for Spanish, 'fr' for French, defaults to 'zh')",
+    )
 
     args = parser.parse_args()
     audio_path = Path("audio_files") / args.filename
@@ -82,4 +90,4 @@ if __name__ == "__main__":
         print(f"Error: File {audio_path} not found")
         exit(1)
 
-    asyncio.run(main(audio_path))
+    asyncio.run(main(audio_path, args.language))

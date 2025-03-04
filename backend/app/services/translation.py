@@ -109,12 +109,11 @@ class TranslationService:
         self,
         model_name: str = "llama-3.1-8b-instant",
         model_provider: str = "groq",
-        done_callback: Callable | None = None,
     ):
         self.model = init_chat_model(model=model_name, model_provider=model_provider)
         self.model_name = model_name
         self.model_provider = model_provider
-        self.system_prompt = "You are an expert translator. You will be given a text in a source language and you need to translate it into {target_language}.Note that the souce text will have small errors in puncutation in grammar and punctuation and may be missing words. Do your best to translate the text as accurately as possible without adding any additional information or commentary. Output only the translation, nothing more."
+        self.system_prompt = "You are an expert translator. You will be given chunks of text in a source language and you need to translate it into {target_language}.Note that the souce text will have small errors in puncutation in grammar and punctuation and may be missing words. Do your best to translate the text as accurately as possible without adding any additional information or commentary. Output only the translation, nothing more."
         self.prompt_template = ChatPromptTemplate.from_messages(
             [
                 ("system", self.system_prompt),
@@ -122,18 +121,28 @@ class TranslationService:
             ]
         )
 
-        self.done_callback = done_callback
+    async def _execute_callback(self, text: str, done_callback: Callable | None = None):
+        if done_callback:
+            await done_callback(text)
 
-    async def _execute_callback(self, text: str):
-        if self.done_callback:
-            await self.done_callback(text)
-
-    async def translate(self, text: str, target_language: LanguageCode):
+    async def translate(
+        self,
+        text: str,
+        target_language: LanguageCode,
+        done_callback: Callable | None = None,
+    ):
         prompt = self.prompt_template.invoke(
             {"text": text, "target_language": LANGUAGE_MAP[target_language]}
         )
-        response = await self.model.ainvoke(prompt)
+        response = await self.model.ainvoke(
+            prompt,
+            config={
+                "configurable": {
+                    "temperature": 0.0,
+                }
+            },
+        )
         translated_text = response.content
         logger.info(f"Translated text: {translated_text}")
-        await self._execute_callback(str(translated_text))
+        await self._execute_callback(str(translated_text), done_callback)
         return translated_text
