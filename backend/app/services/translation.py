@@ -1,6 +1,7 @@
-from typing import Literal
+from typing import Callable, Literal
 from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
+from app.config import logger
 
 LANGUAGE_MAP = {
     "af": "Afrikaans",
@@ -108,6 +109,7 @@ class TranslationService:
         self,
         model_name: str = "llama-3.1-8b-instant",
         model_provider: str = "groq",
+        done_callback: Callable | None = None,
     ):
         self.model = init_chat_model(model=model_name, model_provider=model_provider)
         self.model_name = model_name
@@ -120,9 +122,18 @@ class TranslationService:
             ]
         )
 
+        self.done_callback = done_callback
+
+    async def _execute_callback(self, text: str):
+        if self.done_callback:
+            await self.done_callback(text)
+
     async def translate(self, text: str, target_language: LanguageCode):
         prompt = self.prompt_template.invoke(
             {"text": text, "target_language": LANGUAGE_MAP[target_language]}
         )
         response = await self.model.ainvoke(prompt)
-        return response.content
+        translated_text = response.content
+        logger.info(f"Translated text: {translated_text}")
+        await self._execute_callback(str(translated_text))
+        return translated_text
