@@ -72,7 +72,125 @@ class TranscriptionBuffer:
         ]
 
 
-class ASRProcessor:
+class FeedbackTranscriptionBuffer:
+    def __init__(self) -> None:
+        self.previous_transcription: list[str] = []
+        self.committed: list[str] = []
+        self.uncommitted: list[str] = []
+        self.N_WORDS = 7
+        self.WORDS_CHECKED = 2
+
+    @property
+    def committed_text(self) -> str:
+        return "".join(self.committed)
+
+    @property
+    def uncommitted_text(self) -> str:
+        return "".join(self.uncommitted)
+
+    def merge_transcription(self, new_transcription: list):
+        previous_n_words = self.previous_transcription[-self.N_WORDS :]
+        logger.info(f"Previous n words: {previous_n_words}")
+        new_words = self._get_words(new_transcription)
+        logger.info(f"New words: {new_words}")
+
+        # If not enough previous words, just update and return
+        if len(previous_n_words) < self.N_WORDS:
+            logger.info("Extending previous transcription")
+            self.previous_transcription = new_words
+            self.uncommitted = new_words
+            return
+
+        # Reset match indices for each new merge attempt
+        previous_index = -1
+        new_index = -1
+
+        # Break out of the outer loop as soon as we find a match
+        found_match = False
+        for i in range(0, len(new_words) - self.WORDS_CHECKED + 1):
+            for j in range(2, self.N_WORDS):
+                is_match = True
+                # Check consecutive words
+                for k in range(self.WORDS_CHECKED):
+                    if (
+                        i + k >= len(new_words)
+                        or self.N_WORDS - j + k >= len(previous_n_words)
+                        or new_words[i + k] != previous_n_words[self.N_WORDS - j + k]
+                    ):
+                        is_match = False
+                        break
+
+                if is_match:
+                    previous_index = self.N_WORDS - j + self.WORDS_CHECKED - 1
+                    new_index = i + self.WORDS_CHECKED - 1
+                    found_match = True
+                    break
+            if found_match:
+                break
+
+        if previous_index != -1:
+            offset = len(self.previous_transcription) - self.N_WORDS
+            logger.info(f"Offset: {offset}")
+            logger.info(f"Previous: {previous_n_words[:previous_index]}")
+            logger.info(f"New: {new_words[new_index:]}")
+            self.committed = self.previous_transcription[: offset + previous_index]
+            self.uncommitted = new_words[new_index:]
+            self.previous_transcription = self.committed + self.uncommitted
+            logger.info(f"Committed: {self.committed}")
+            logger.info(f"Uncommitted: {self.uncommitted}")
+            logger.info(f"Previous transcription: {self.previous_transcription}")
+        else:
+            self.previous_transcription.extend(new_words)
+            self.uncommitted = new_words
+
+    def _get_words(self, segments: list):
+        return [
+            word["word"]
+            for segment in segments
+            for word in segment.get("words", [])
+            if (
+                segment.get("no_speech_prob", 0) <= 0.5  # Check both conditions
+                and segment.get("avg_logprob", -1) > -1.0
+            )  # Adjust threshold as needed
+        ]
+
+
+class FeedbackASRProcessor:
+    def __init__(self) -> None:
+        self.transcription_buffer = FeedbackTranscriptionBuffer()
+        self.model = mlx_whisper
+        self.previous_transcription: list[str] = []
+        self.committed: list[str] = []
+        self.uncommitted: list[str] = []
+        self.audio_buffer = np.array([], dtype=np.float32)
+        self.FEEDBACK_LENGTH = (
+            4.0  # length of feedback audio provided in addition to the new audio
+        )
+
+    def process_new_chunk(self, audio_array: NDArray[np.float32]):
+        self._trim_buffer()
+        self.audio_buffer = np.concatenate([self.audio_buffer, audio_array])
+        segments = self._transcribe(self.audio_buffer)
+        logger.info(
+            [word["word"] for segment in segments for word in segment.get("words", [])]
+        )
+        self.transcription_buffer.merge_transcription(segments)
+
+    def _trim_buffer(self):
+        if len(self.audio_buffer) > self.FEEDBACK_LENGTH * SAMPLING_RATE:
+            self.audio_buffer = self.audio_buffer[
+                -int(self.FEEDBACK_LENGTH * SAMPLING_RATE) :  # Note the negative index
+            ]
+
+    def _transcribe(self, audio_array: NDArray[np.float32]):
+        return self.model.transcribe(
+            audio_array,
+            word_timestamps=True,
+            condition_on_previous_text=False,
+        ).get("segments")
+
+
+class TimeSliceASRProcessor:
     def __init__(self):
         self.model = mlx_whisper
         self.last_trim_ts = 0.0
@@ -138,8 +256,10 @@ async def websocket_endpoint(
     websocket: WebSocket, min_chunk_size: Annotated[float, Query()] = 1.0
 ):
     await websocket.accept()
-    byte_buffer = bytearray()
-    asr = ASRProcessor()
+    samples = np.array([], dtype=np.float32)
+    PREV_N_SECONDS = 0.5
+    prev_buffer = np.array([], dtype=np.float32)
+    asr = FeedbackASRProcessor()
     full_audio = bytearray()
 
     try:
