@@ -1,8 +1,7 @@
-class AudioProcessor extends AudioWorkletProcessor {
+class ChunkWorklet extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.isRecording = true;
-    this.bufferSize = Math.floor(sampleRate * 0.1); // 100ms of audio
+    this.bufferSize = 512;
     this.inputBuffer = new Float32Array(this.bufferSize);
     this.inputBufferIndex = 0;
   }
@@ -17,9 +16,7 @@ class AudioProcessor extends AudioWorkletProcessor {
 
         if (this.inputBufferIndex >= this.bufferSize) {
           // Send the Float32 buffer
-          this.port.postMessage(this.inputBuffer.buffer, [
-            this.inputBuffer.buffer,
-          ]);
+          this.port.postMessage(this.inputBuffer);
 
           // Reset buffer
           this.inputBuffer = new Float32Array(this.bufferSize);
@@ -27,7 +24,7 @@ class AudioProcessor extends AudioWorkletProcessor {
         }
       }
     }
-    return this.isRecording;
+    return true;
   }
 }
-registerProcessor('audio-processor', AudioProcessor);
+registerProcessor('chunker-worklet', ChunkWorklet);
