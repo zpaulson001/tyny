@@ -13,9 +13,16 @@ interface MediaDeviceInfo {
   label: string;
 }
 
-export function DeviceSelect() {
+interface DeviceSelectProps {
+  selectedDevice: string;
+  setSelectedDevice: (deviceId: string) => void;
+}
+
+export function DeviceSelect({
+  selectedDevice,
+  setSelectedDevice,
+}: DeviceSelectProps) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState<string>('');
 
   useEffect(() => {
     async function getDevices() {
