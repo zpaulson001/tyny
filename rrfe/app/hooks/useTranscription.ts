@@ -27,6 +27,12 @@ const DEFAULT_OPTIONS: Required<TranscriptionOptions> = {
   silenceDuration: 0.7,
 };
 
+interface Transcription {
+  id: number;
+  text: string;
+  time: number;
+}
+
 export default function useTranscription(
   deviceId: string,
   options: Partial<TranscriptionOptions> = {}
@@ -37,20 +43,7 @@ export default function useTranscription(
   const [streamState, setStreamState] = useState<StreamState>(
     STREAM_STATE.IDLE
   );
-
-  useEffect(() => {
-    if (
-      speechProbRef.current >= mergedOptions.speechProbThreshold &&
-      !isSpeaking
-    ) {
-      setIsSpeaking(true);
-    } else if (
-      speechProbRef.current < mergedOptions.speechProbThreshold &&
-      isSpeaking
-    ) {
-      setIsSpeaking(false);
-    }
-  }, [speechProbRef.current, isSpeaking]);
+  const [transcription, setTranscription] = useState<Transcription[]>([]);
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const vadWorkerRef = useRef<Worker | null>(null);
@@ -144,6 +137,7 @@ export default function useTranscription(
           type: 'module',
         }
       );
+      whisperWorkerRef.current.postMessage({ type: 'load' });
       console.log('Worker created successfully');
     }
 
@@ -153,6 +147,10 @@ export default function useTranscription(
         mergedOptions.silenceDuration,
         (utterance) => {
           console.log('New utterance detected:', utterance);
+          whisperWorkerRef.current?.postMessage({
+            type: 'generate',
+            data: utterance,
+          });
         }
       );
     }
@@ -201,6 +199,14 @@ export default function useTranscription(
           break;
         case 'complete':
           console.log('Transcription:', e.data.output);
+          setTranscription((prev) => [
+            ...prev,
+            {
+              id: e.data.id,
+              text: e.data.output,
+              time: e.data.time,
+            },
+          ]);
           break;
       }
     };
