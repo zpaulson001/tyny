@@ -23,7 +23,7 @@ interface TranscriptionOptions {
 }
 
 const DEFAULT_OPTIONS: Required<TranscriptionOptions> = {
-  speechProbThreshold: 0.8,
+  speechProbThreshold: 0.5,
   silenceDuration: 0.7,
 };
 
