@@ -20,3 +20,6 @@ wheels/
 *.m4a
 *.aac
 *.flac
+
+# Model files
+models/

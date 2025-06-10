@@ -5,24 +5,30 @@
         <span>Audio Streaming Demo</span>
       </template>
       <template #end>
-        <IftaLabel>
-          <InputNumber inputId="min-chunk-input" class="min-chunk-input" v-model="minChunkValue"
-            :min-fraction-digits="0" :max-fraction-digits="1" :min="0.1" :max="10" :step="0.1" :disabled="isRecording"
-            showButtons /><label for="min-chunk-input">Min Chunk Size (seconds)</label>
-        </IftaLabel>
+        <div class="input-container">
+          <InputNumber inputId="min-chunk-input" v-model="minChunkValue" :min-fraction-digits="0"
+            :max-fraction-digits="1" :min="0.1" :max="10" :step="0.1" :disabled="isRecording" showButtons />
 
-        <IftaLabel>
           <Select class="selected-device" v-model="selectedDevice" :options="audioDevices" optionLabel="label"
             placeholder="Select Audio Device" :disabled="isRecording">
+            <template #value="slotProps">
+              <div class="select-contents">
+                <i class="pi pi-microphone"></i>
+                <div v-if="slotProps.value">{{ slotProps.value.label }}</div>
+                <span v-else>{{ slotProps.placeholder }}</span>
+              </div>
+            </template>
           </Select>
-          <label for="selected-device">Audio Device</label>
-        </IftaLabel>
-        <ButtonGroup>
-          <Button :icon="isRecording ? 'pi pi-stop' : 'pi pi-microphone'"
-            :severity="isRecording ? 'danger' : 'secondary'" @click="toggleRecording" :loading="isLoading"
-            variant="outlined" :disabled="!selectedDevice" />
-          <Button icon="pi pi-refresh" variant="outlined" severity="secondary" @click="handleReset" />
-        </ButtonGroup>
+
+          <ButtonGroup>
+            <Button :icon="isRecording ? 'pi pi-stop' : 'pi pi-play'" :severity="isRecording ? 'danger' : 'secondary'"
+              @click="toggleRecording" :loading="isLoading" variant="outlined" :disabled="!selectedDevice" />
+            <Button icon="pi pi-refresh" variant="outlined" severity="secondary" @click="handleReset" />
+          </ButtonGroup>
+        </div>
+
+
+
       </template>
 
     </Toolbar>
@@ -33,12 +39,13 @@
 import { ref, onUnmounted } from 'vue';
 import useTranscriptionStore from '@/stores/transcriptionStore';
 import { watch } from 'vue';
-
+import useTranslationStore from '@/stores/translationStore';
 const isRecording = ref(false);
 const isLoading = ref(false);
 const statusMessage = ref('Ready');
 const statusSeverity = ref('info');
 const transcriptionStore = useTranscriptionStore();
+const translationStore = useTranslationStore();
 let streamer: ModernAudioStreamer | null = null;
 
 const audioDevices = ref<AudioDevice[]>([]);
@@ -63,6 +70,7 @@ type AudioDevice = {
 const handleReset = () => {
   transcriptionStore.committed = '';
   transcriptionStore.uncommitted = '';
+  translationStore.zh = '';
   streamer?.disconnect();
 }
 
@@ -73,8 +81,8 @@ const fetchAudioDevices = async (): Promise<AudioDevice[]> => {
 
 // Add this interface before the ModernAudioStreamer class
 interface TranscriptionResponse {
-  committed: string;
-  uncommitted: string;
+  event: string;
+  data: any;
 }
 
 class ModernAudioStreamer {
@@ -109,12 +117,12 @@ class ModernAudioStreamer {
   private handleWebSocketMessage(event: MessageEvent) {
     try {
       const messageData: TranscriptionResponse = JSON.parse(event.data);
-      console.log('Transcription:', {
-        committed: messageData.committed,
-        uncommitted: messageData.uncommitted
-      });
-      transcriptionStore.committed = messageData.committed;
-      transcriptionStore.uncommitted = messageData.uncommitted;
+      if (messageData.event === 'transcription') {
+        transcriptionStore.committed = messageData.data.committed;
+        transcriptionStore.uncommitted = messageData.data.uncommitted;
+      } else if (messageData.event === 'translation') {
+        translationStore.zh = messageData.data.text;
+      }
       console.log(transcriptionStore.committed, transcriptionStore.uncommitted);
       // You can emit these values or handle them as needed
     } catch (err) {
@@ -250,7 +258,7 @@ class ModernAudioStreamer {
   }
 }
 
-streamer = new ModernAudioStreamer(`ws://localhost:3000/ws?min_chunk=${minChunkValue.value}`);
+streamer = new ModernAudioStreamer(`ws://localhost:3000/ws?min_chunk=${minChunkValue.value}&language=zh`);
 
 (async () => {
   try {
@@ -305,7 +313,7 @@ watch(minChunkValue, async (newValue) => {
   if (streamer?.isConnected) {
     // Disconnect and reconnect with new chunk value
     streamer.disconnect();
-    streamer.serverUrl = `ws://localhost:3000/ws?min_chunk_size=${newValue}`;
+    streamer.serverUrl = `ws://localhost:3000/ws?min_chunk_size=${newValue}&language=zh`;
     await streamer.connect();
   }
 });
@@ -319,10 +327,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.selected-device {
-  margin-right: 1rem;
-}
-
 .audio-streamer {
   width: 100%;
   max-width: 800px;
@@ -338,6 +342,25 @@ onUnmounted(() => {
   margin: 0;
 }
 
+.select-contents {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.min-chunk-input {
+  width: 4rem;
+}
+
+.input-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.p-inputnumber-input {
+  flex: 0 0 auto !important;
+}
 
 @keyframes blink {
   0% {
@@ -351,5 +374,9 @@ onUnmounted(() => {
   100% {
     opacity: 1;
   }
+}
+
+:deep(.p-inputnumber-input) {
+  width: 5.5rem;
 }
 </style>
