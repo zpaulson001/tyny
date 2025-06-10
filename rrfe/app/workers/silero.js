@@ -8,6 +8,9 @@ let stateTensor = new ort.Tensor(
 );
 console.log('LSTM states initialized');
 
+const inferenceQueue = [];
+let isProcessing = false;
+
 class SileroONNX {
   static session = null;
 
@@ -40,13 +43,11 @@ class SileroONNX {
   }
 }
 
-let processing = false;
-async function runVADInference(audioChunk) {
-  if (processing) return;
-  processing = true;
+async function runVADInference() {
+  if (isProcessing || inferenceQueue.length === 0) return;
+  isProcessing = true;
 
-  // Tell the main thread we are starting
-  self.postMessage({ status: 'start' });
+  const { audioChunk, sequenceNumber } = inferenceQueue.shift();
 
   // Retrieve the text-generation pipeline.
   const session = await SileroONNX.getSession();
@@ -69,7 +70,7 @@ async function runVADInference(audioChunk) {
     console.log('Outputs:', outputs);
     const speechProb = outputs.output.data[0]; // The probability of speech
     const state = outputs.stateN.data;
-    console.log('State:', state);
+    // console.log('State:', state);
     stateTensor = new ort.Tensor('float32', state, [2, 1, 128]);
 
     console.log('speechProb', speechProb);
@@ -79,6 +80,7 @@ async function runVADInference(audioChunk) {
       output: {
         speechProb,
         audioChunk,
+        sequenceNumber,
       },
     });
   } catch (e) {
@@ -87,9 +89,15 @@ async function runVADInference(audioChunk) {
       status: 'error',
       error: e,
     });
+  } finally {
+    isProcessing = false;
+    runVADInference();
   }
+}
 
-  processing = false;
+function enqueueInference(audioChunk, sequenceNumber) {
+  inferenceQueue.push({ audioChunk, sequenceNumber });
+  runVADInference();
 }
 
 async function load() {
@@ -123,7 +131,7 @@ function resetState() {
 // Listen for messages from the main thread
 self.addEventListener('message', async (e) => {
   console.log('Worker received message:', e.data);
-  const { type, data } = e.data;
+  const { type, data, sequenceNumber } = e.data;
 
   switch (type) {
     case 'load':
@@ -131,7 +139,7 @@ self.addEventListener('message', async (e) => {
       break;
 
     case 'inference':
-      runVADInference(data);
+      enqueueInference(data, sequenceNumber);
       break;
 
     case 'healthcheck':
