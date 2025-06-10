@@ -32,7 +32,7 @@ export default function useTranscription(
   options: Partial<TranscriptionOptions> = {}
 ) {
   const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
-  const speechProbRef = useRef<number>(0);
+  const fullAudioBufferRef = useRef<Float32Array>(new Float32Array(0));
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [streamState, setStreamState] = useState<StreamState>(
     STREAM_STATE.IDLE
@@ -118,6 +118,9 @@ export default function useTranscription(
       mediaStreamRef.current = null;
     }
     vadWorkerRef.current?.postMessage({ type: 'reset' });
+
+    fullAudioBufferRef.current = new Float32Array(0);
+
     setStreamState(STREAM_STATE.IDLE);
   };
 
@@ -163,7 +166,25 @@ export default function useTranscription(
           break;
         case 'complete':
           console.log('Speech probability:', e.data.output);
-          speechProbRef.current = e.data.output;
+          const speechProb = e.data.output.speechProb;
+
+          // Handle speech state changes
+          if (speechProb >= mergedOptions.speechProbThreshold) {
+            setIsSpeaking(true);
+          } else {
+            setIsSpeaking(false);
+          }
+
+          // Concatenate the new chunk with the existing buffer
+          const newBuffer = new Float32Array(
+            fullAudioBufferRef.current.length + e.data.output.audioChunk.length
+          );
+          newBuffer.set(fullAudioBufferRef.current);
+          newBuffer.set(
+            e.data.output.audioChunk,
+            fullAudioBufferRef.current.length
+          );
+          fullAudioBufferRef.current = newBuffer;
           utteranceSegmenterRef.current?.process(
             e.data.output.audioChunk,
             e.data.output.speechProb
