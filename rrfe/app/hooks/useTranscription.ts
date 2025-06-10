@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import AudioPipeline from '~/lib/audio-pipeline';
+import { AudioPipeline } from '~/lib/audio-pipeline';
 import UtteranceSegmenter from '~/lib/utterance-segmenter';
 
 const SAMPLE_RATE = 16000;
@@ -67,8 +67,8 @@ export default function useTranscription(
       const constraints: MediaStreamConstraints = {
         audio: {
           channelCount: 1,
-          echoCancellation: false,
-          noiseSuppression: false,
+          echoCancellation: true,
+          noiseSuppression: true,
           ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
         },
       };
@@ -104,7 +104,6 @@ export default function useTranscription(
   const stopStreaming = async () => {
     if (audioPipelineRef.current) {
       await audioPipelineRef.current.stop();
-      audioPipelineRef.current = null;
     }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -234,5 +233,6 @@ export default function useTranscription(
     streamState,
     toggleStreaming,
     isSpeaking,
+    transcription,
   };
 }
