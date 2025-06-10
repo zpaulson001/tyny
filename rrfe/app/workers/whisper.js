@@ -11,9 +11,10 @@ class AutomaticSpeechRecognitionPipeline {
   static async getInstance(progress_callback = null) {
     this.transcriber ??= await pipeline(
       'automatic-speech-recognition',
-      'Xenova/whisper-base',
+      'distil-whisper/distil-medium.en',
       {
         progress_callback,
+        device: 'webgpu', // Enable WebGPU backend
       }
     );
     return this.transcriber;
@@ -21,7 +22,9 @@ class AutomaticSpeechRecognitionPipeline {
 }
 
 let processing = false;
-async function generate({ audio, language }) {
+async function generate(audio) {
+  let startTime = performance.now();
+  console.log('whisper generate', audio);
   if (processing) return;
   processing = true;
 
@@ -35,14 +38,15 @@ async function generate({ audio, language }) {
     }
   );
 
-  const outputs = await transcriber(audio);
-
-  console.log(outputs);
-
+  const output = await transcriber(audio);
+  let endTime = performance.now();
+  console.log('whisper generate time', endTime - startTime);
   // Send the output back to the main thread
   self.postMessage({
     status: 'complete',
-    output: 'stuff',
+    output: output.text,
+    time: endTime - startTime,
+    id: performance.now(),
   });
   processing = false;
 }
