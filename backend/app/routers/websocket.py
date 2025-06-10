@@ -1,16 +1,18 @@
 import os
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
+from pathlib import Path
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 import numpy as np
 from app.config import logger
 import datetime
-import mlx_whisper  # type: ignore
 from typing import Annotated, Any
 from collections import deque
 from numpy.typing import NDArray
 import wave
 import asyncio
+import mlx_whisper
 import torch
 
+from app.services.transcription import MLXWhisperService, TranscriptionService
 from app.services.translation import LanguageCode, TranslationService
 
 router = APIRouter()
@@ -48,7 +50,6 @@ class TranscriptionBuffer:
         return "".join(word[2] for word in self.uncommitted) if self.uncommitted else ""
 
     def update(self, new_words: list[tuple[Any, Any, str]]) -> None:
-
         if self.uncommitted is None:
             self.uncommitted = new_words
             return
@@ -257,18 +258,49 @@ class TimeSliceASRProcessor:
 
 
 class SileroVADService:
-    def __init__(self):
-        self.model = None
-        self.utils = None
+    def __init__(self, model_path: str = "models/snakers4_silero-vad_master"):
+        self.model_path = Path(model_path)
+        self.model_path.mkdir(parents=True, exist_ok=True)
 
-    async def initialize(self):
-        if self.model is None:
-            self.model, self.utils = torch.hub.load(
+        # Check if model files already exist
+        model_file = self.model_path / "silero_vad.pt"
+        utils_file = self.model_path / "utils.pt"
+
+        torch.hub.set_dir("models")
+
+        if not (model_file.exists() and utils_file.exists()):
+            print("Downloading Silero VAD model...")
+            # Download from remote
+            model, utils = torch.hub.load(
                 repo_or_dir="snakers4/silero-vad",
                 model="silero_vad",
                 force_reload=True,
                 onnx=False,
             )
+
+            # Save model and utils with weights_only=False
+            torch.save(model.state_dict(), model_file)
+            torch.save(utils, utils_file)
+            print(f"Model saved to {self.model_path}")
+        else:
+            print("Loading local Silero VAD model...")
+
+        # Load the local model
+        model, _ = torch.hub.load(
+            repo_or_dir=self.model_path,
+            model="silero_vad",
+            force_reload=False,
+            onnx=False,
+            source="local",
+        )
+
+        # Load with weights_only=False
+        model.load_state_dict(torch.load(model_file, weights_only=False))
+        utils = torch.load(utils_file, weights_only=False)
+
+        self.model = model
+        self.utils = utils
+        print("Model loaded successfully")
 
     def get_speech_prob(self, audio_chunk, sampling_rate):
         WINDOW_SIZE = 512  # Process audio in chunks of 512 samples
@@ -286,7 +318,7 @@ class SileroVADService:
 
             # Get speech probability for this window
             prob = self.model(window_tensor, sampling_rate).item()
-            max_speech_prob = prob if prob > max_speech_prob else max_speech_prob
+            max_speech_prob = max(prob, max_speech_prob)
 
         return max_speech_prob
 
@@ -295,16 +327,86 @@ class SileroVADService:
 vad_service = SileroVADService()
 
 
+class VADASRProcessor:
+    def __init__(
+        self,
+        transcription_service: TranscriptionService,
+        silence_threshold: float = 700,
+        max_buffer_length: float = 30.0,
+    ):
+        self.transcription_service: TranscriptionService = transcription_service
+        self.SILENCE_THRESHOLD_MS = silence_threshold
+        self.MAX_BUFFER_LENGTH = max_buffer_length
+        self.last_speech_ms = 0.0
+        self.transcription: list[str] = []
+        self.buffer_contains_speech = False
+        self.audio_buffer = np.array([], dtype=np.float32)
+        self.vad = vad_service
+
+    def process_new_chunk(self, audio_data: bytes):
+        # Convert bytes to numpy array of int16, then to float32
+        audio_array = (
+            np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
+        )
+
+        prob = self.vad.get_speech_prob(audio_array, SAMPLING_RATE)
+
+        self.audio_buffer = np.concatenate([self.audio_buffer, audio_array])
+
+        cur_ms = len(self.audio_buffer) / SAMPLING_RATE * 1000  # Convert to ms
+
+        logger.info(f"Audio buffer length in ms: {cur_ms}")
+
+        if prob > 0.9:
+            # Update last speech timestamp when speech is detected
+            self.last_speech_ms = cur_ms
+            self.buffer_contains_speech = True
+
+        logger.info(f"speech prob: {prob}")
+
+        time_since_last_speech = cur_ms - self.last_speech_ms
+        logger.info(f"Time since last speech: {time_since_last_speech}")
+
+        # If the time since the last speech is greater than the silence threshold or the buffer is too long, process the buffer
+        if (
+            cur_ms - self.last_speech_ms > self.SILENCE_THRESHOLD_MS
+            or cur_ms / 1000 > self.MAX_BUFFER_LENGTH
+        ):
+            transcription = self._process_buffer()
+
+            if transcription:
+                logger.info(f"Transcription: {transcription}")
+                self.transcription.append(transcription)
+
+            return transcription
+
+    def _process_buffer(self):
+        # Process the buffer here
+
+        transcription = None
+
+        if self.buffer_contains_speech:
+            transcription = self.transcription_service.transcribe(self.audio_buffer)
+
+        self._buffer_reset()
+
+        return transcription
+
+    def _buffer_reset(self):
+        self.audio_buffer = np.array([], dtype=np.float32)
+        self.last_speech_ms = 0.0
+        self.buffer_contains_speech = False
+
+
 # Dependency to ensure model is loaded
-async def get_vad_service():
-    await vad_service.initialize()
-    return vad_service
+# def get_vad_service():
+#     vad_service.initialize()
+#     return vad_service
 
 
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
-    vad: SileroVADService = Depends(get_vad_service),
     min_chunk_size: Annotated[float, Query()] = 1.0,
     language: Annotated[LanguageCode | None, Query()] = None,
 ):
@@ -312,7 +414,10 @@ async def websocket_endpoint(
     samples = np.array([], dtype=np.float32)
     PREV_N_SECONDS = 0.5
     prev_buffer = np.array([], dtype=np.float32)
-    asr = FeedbackASRProcessor()
+    transcription_service = MLXWhisperService(
+        model_name="mlx-community/whisper-large-v3-turbo"
+    )
+    asr = VADASRProcessor(transcription_service)
     full_audio = bytearray()
     time_wout_speech = 0.0
 
@@ -322,54 +427,55 @@ async def websocket_endpoint(
             if not audio_data:
                 continue
 
-            new_chunk = (
-                np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
-            )
+            # new_chunk = (
+            #     np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
+            # )
 
-            prob = vad.get_speech_prob(
-                new_chunk,
-                SAMPLING_RATE,
-            )
-            logger.info(f"Probability of speech: {prob}")
+            # prob = vad.get_speech_prob(
+            #     new_chunk,
+            #     SAMPLING_RATE,
+            # )
+            # logger.info(f"Probability of speech: {prob}")
 
-            if prob < 0.9:
-                time_wout_speech = time_wout_speech + len(new_chunk) / SAMPLING_RATE
-                prev_buffer = np.concatenate([prev_buffer, new_chunk])
-                if len(prev_buffer) > PREV_N_SECONDS * SAMPLING_RATE:
-                    prev_buffer = prev_buffer[-int(PREV_N_SECONDS * SAMPLING_RATE) :]
-            else:
-                if time_wout_speech > SILENCE_THRESHOLD:
-                    new_chunk = np.concatenate([prev_buffer, new_chunk])
-                    audio_data = (new_chunk * 32768.0).astype(np.int16).tobytes()
-                    prev_buffer = np.array([], dtype=np.float32)
-                time_wout_speech = 0.0
+            # if prob < 0.9:
+            #     time_wout_speech = time_wout_speech + len(new_chunk) / SAMPLING_RATE
+            #     prev_buffer = np.concatenate([prev_buffer, new_chunk])
+            #     if len(prev_buffer) > PREV_N_SECONDS * SAMPLING_RATE:
+            #         prev_buffer = prev_buffer[-int(PREV_N_SECONDS * SAMPLING_RATE) :]
+            # else:
+            #     if time_wout_speech > SILENCE_THRESHOLD:
+            #         new_chunk = np.concatenate([prev_buffer, new_chunk])
+            #         audio_data = (new_chunk * 32768.0).astype(np.int16).tobytes()
+            #         prev_buffer = np.array([], dtype=np.float32)
+            #     time_wout_speech = 0.0
 
-            logger.info(f"Time without speech: {time_wout_speech}")
+            # logger.info(f"Time without speech: {time_wout_speech}")
 
-            if time_wout_speech > SILENCE_THRESHOLD:
-                logger.info("Silence detected, continuing")
-                continue
+            # if time_wout_speech > SILENCE_THRESHOLD:
+            #     logger.info("Silence detected, continuing")
+            #     continue
 
-            samples = np.concatenate([samples, new_chunk])
+            # samples = np.concatenate([samples, new_chunk])
             full_audio.extend(audio_data)
 
             logger.info(f"Buffer size: {len(samples)} samples")
             logger.info(f"Received audio chunk of size: {len(audio_data)} bytes")
 
-            if len(samples) < SAMPLING_RATE * min_chunk_size:
-                continue
+            # if len(samples) < SAMPLING_RATE * min_chunk_size:
+            #     continue
 
-            asr.process_new_chunk(samples)
+            transcription = asr.process_new_chunk(audio_data)
+            logger.info(f"Transcription: {transcription}")
 
-            samples = np.array([], dtype=np.float32)
+            # samples = np.array([], dtype=np.float32)
 
             # Send a message to the client with committed and uncommitted texts
             await websocket.send_json(
                 {
                     "event": "transcription",
                     "data": {
-                        "committed": asr.transcription_buffer.committed_text,
-                        "uncommitted": asr.transcription_buffer.uncommitted_text,
+                        "committed": asr.transcription,
+                        # "uncommitted": asr.transcription_buffer.uncommitted_text,
                     },
                 }
             )
@@ -378,27 +484,26 @@ async def websocket_endpoint(
                 translation_service = TranslationService()
 
                 # Create and run translation task
-                if asr.transcription_buffer.committed_text:
-                    asyncio.create_task(
-                        translation_service.translate(
-                            text=asr.transcription_buffer.committed_text,
-                            target_language=language,
-                            done_callback=lambda text: websocket.send_json(
-                                {
-                                    "event": "translation",
-                                    "data": {
-                                        "text": text,
-                                        "language": language,
-                                    },
-                                }
-                            ),
-                        )
-                    )
+                # if asr.transcription_buffer.committed_text:
+                #     asyncio.create_task(
+                #         translation_service.translate(
+                #             text=asr.transcription_buffer.committed_text,
+                #             target_language=language,
+                #             done_callback=lambda text: websocket.send_json(
+                #                 {
+                #                     "event": "translation",
+                #                     "data": {
+                #                         "text": text,
+                #                         "language": language,
+                #                     },
+                #                 }
+                #             ),
+                #         )
+                #     )
 
     except WebSocketDisconnect:
         logger.info("Client disconnected")
         if len(full_audio) > 0:  # Only save if we have audio data
-
             # Librosa approach
 
             # sf = soundfile.SoundFile(
@@ -426,7 +531,7 @@ async def websocket_endpoint(
             full_audio_array = (
                 np.frombuffer(full_audio, dtype=np.int16).astype(np.float32) / 32768.0
             )
-            text = mlx_whisper.transcribe(full_audio_array)["text"]
+            text = transcription_service.transcribe(full_audio_array)
             logger.info(f"Transcription: {text}")
 
             translation_service = TranslationService()
