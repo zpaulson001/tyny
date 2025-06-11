@@ -12,8 +12,6 @@ class OutletWorklet extends AudioWorkletProcessor {
       const samples = input[0];
       const output = outputs[0];
 
-      console.log('buffer before:', this.buffer);
-
       // Pass the input to the output
       for (let i = 0; i < samples.length; i++) {
         output[0][i] = samples[i];
@@ -25,15 +23,10 @@ class OutletWorklet extends AudioWorkletProcessor {
         }
       }
 
-      console.log('Buffer index:', this.bufferIndex);
-      console.log('Buffer:', this.buffer);
-
       // If buffer is full, send it and create a new one
       if (this.bufferIndex >= this.outputSize) {
-        console.log('Resetting buffer');
         this.port.postMessage(this.buffer);
         this.buffer = new Float32Array(this.outputSize);
-        console.log('New buffer:', this.buffer);
         this.bufferIndex = 0;
       }
     }
