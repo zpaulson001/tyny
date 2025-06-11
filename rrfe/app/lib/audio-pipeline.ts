@@ -57,8 +57,9 @@ export class AudioPipeline {
     null;
   private inputNode: MediaStreamAudioSourceNode | null = null;
   private outletNode: AudioWorkletNode | null = null;
+  private gainNode: GainNode | null = null;
+  private compressorNode: DynamicsCompressorNode | null = null;
   private destinationNode: MediaStreamAudioDestinationNode | null = null;
-  private mediaRecorder: MediaRecorder | null = null;
 
   constructor(
     inputStream: MediaStream,
@@ -80,6 +81,16 @@ export class AudioPipeline {
     );
 
     this.destinationNode = this.audioContext.createMediaStreamDestination();
+
+    this.compressorNode = this.audioContext.createDynamicsCompressor();
+    this.compressorNode.threshold.value = -20; // Start compressing at -20 dB
+    this.compressorNode.knee.value = 10; // Soft knee for a smoother transition
+    this.compressorNode.ratio.value = 3; // 3:1 compression ratio
+    this.compressorNode.attack.value = 0.01; // Fast attack (10ms) to catch sudden peaks
+    this.compressorNode.release.value = 0.15; // Relatively fast release (150ms)
+
+    this.gainNode = this.audioContext.createGain();
+    this.gainNode.gain.value = 1.2;
 
     this.outletNode = new AudioWorkletNode(
       this.audioContext,
@@ -109,15 +120,13 @@ export class AudioPipeline {
       };
     }
 
-    this.inputNode.connect(this.outletNode);
+    this.inputNode.connect(this.compressorNode);
+    this.compressorNode.connect(this.gainNode);
+    this.gainNode.connect(this.outletNode);
     this.outletNode.connect(this.destinationNode);
   }
 
   async stop(): Promise<void> {
-    if (this.mediaRecorder) {
-      this.mediaRecorder.stop();
-      this.mediaRecorder = null;
-    }
     if (this.outletNode) {
       this.outletNode.disconnect();
       this.outletNode = null;
