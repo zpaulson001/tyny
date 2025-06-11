@@ -35,7 +35,6 @@ export default class UtteranceSegmenter {
       this.audioBuffer.length - this.lastSpeechLoc >=
       SAMPLE_RATE * this.silenceDuration
     ) {
-      console.log('Audio buffer length:', this.audioBuffer.length);
       if (this.containsSpeech) {
         console.log('New utterance detected');
         this.onNewUtterance(this.audioBuffer);

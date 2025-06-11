@@ -15,22 +15,18 @@ class SileroONNX {
   static session = null;
 
   static async getSession() {
-    console.log('Getting ONNX session...');
     if (this.session) {
-      console.log('Using existing session');
       return this.session;
     }
 
-    console.log('Creating new ONNX session...');
     try {
       this.session = await ort.InferenceSession.create(
         '/models/silero_vad.onnx',
         {
-          executionProviders: ['webgpu', 'webgl', 'wasm'],
+          executionProviders: ['webgpu', 'wasm'],
           graphOptimizationLevel: 'all',
         }
       );
-      console.log('ONNX session created successfully');
       return this.session;
     } catch (error) {
       console.error('Failed to create ONNX session:', error);
@@ -67,13 +63,10 @@ async function runVADInference() {
 
   try {
     const outputs = await session.run(inputs);
-    console.log('Outputs:', outputs);
     const speechProb = outputs.output.data[0]; // The probability of speech
     const state = outputs.stateN.data;
     // console.log('State:', state);
     stateTensor = new ort.Tensor('float32', state, [2, 1, 128]);
-
-    console.log('speechProb', speechProb);
 
     self.postMessage({
       status: 'complete',
@@ -130,7 +123,6 @@ function resetState() {
 
 // Listen for messages from the main thread
 self.addEventListener('message', async (e) => {
-  console.log('Worker received message:', e.data);
   const { type, data, sequenceNumber } = e.data;
 
   switch (type) {
