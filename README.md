@@ -23,8 +23,10 @@ Tyny is a real-time audio transcription and translation API. It's built with Fas
 - ✅ Test different methods of audio chunking (Breaking at pauses, breaking every x amount of time)
 - ✅ Write script to stream audio files to the server for testing and evaluation
 - 🚧 Translation service integration
+  - 🚧 Try running NLLB in web workers on the client
 - 🚧 Test hosting VAD and ASR models on BE vs FE
 - 🚧 Build basic FE to display live translation/transcription
+- 📝 Add support for Nvidia's Parakeet models
 
 Legend:
 
