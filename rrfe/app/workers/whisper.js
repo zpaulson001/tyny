@@ -1,4 +1,4 @@
-import { pipeline } from '@huggingface/transformers';
+import { pipeline, TextStreamer } from '@huggingface/transformers';
 
 const MAX_NEW_TOKENS = 64;
 
@@ -11,7 +11,7 @@ class AutomaticSpeechRecognitionPipeline {
   static async getInstance(progress_callback = null) {
     this.transcriber ??= await pipeline(
       'automatic-speech-recognition',
-      'distil-whisper/distil-medium.en',
+      'Xenova/whisper-base.en',
       {
         progress_callback,
         device: 'webgpu', // Enable WebGPU backend
@@ -24,7 +24,6 @@ class AutomaticSpeechRecognitionPipeline {
 let processing = false;
 async function generate(audio) {
   let startTime = performance.now();
-  console.log('whisper generate', audio);
   if (processing) return;
   processing = true;
 
@@ -38,7 +37,18 @@ async function generate(audio) {
     }
   );
 
-  const output = await transcriber(audio);
+  const streamer = new TextStreamer(transcriber.tokenizer, {
+    skip_special_tokens: true,
+    skip_prompt: true,
+    callback_function: (x) => {
+      self.postMessage({
+        status: 'update',
+        output: x,
+      });
+    },
+  });
+
+  const output = await transcriber(audio, { streamer });
   let endTime = performance.now();
   console.log('whisper generate time', endTime - startTime);
   // Send the output back to the main thread
