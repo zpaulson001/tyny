@@ -1,5 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { AudioPipeline } from '~/lib/audio-pipeline';
+import {
+  concatenateFloat32Arrays,
+  saveFloat32ArrayToWav,
+} from '~/lib/audio-utils';
 import UtteranceSegmenter from '~/lib/utterance-segmenter';
 
 const SAMPLE_RATE = 16000;
@@ -33,10 +37,15 @@ interface Transcription {
   time: number;
 }
 
-export default function useTranscription(
-  deviceId: string,
+export default function useLocalTranscription(
+  input: {
+    deviceId?: string;
+    file?: ArrayBuffer;
+  },
   options: Partial<TranscriptionOptions> = {}
 ) {
+  const [mostRecentTranscription, setMostRecentTranscription] =
+    useState<string>('');
   const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
   const fullAudioBufferRef = useRef<Float32Array>(new Float32Array(0));
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
@@ -69,18 +78,17 @@ export default function useTranscription(
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
-          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+          ...(input.deviceId ? { deviceId: { exact: input.deviceId } } : {}),
         },
       };
 
-      // create media stream
-      mediaStreamRef.current =
-        await navigator.mediaDevices.getUserMedia(constraints);
-
+      if (input.deviceId) {
+        mediaStreamRef.current =
+          await navigator.mediaDevices.getUserMedia(constraints);
+      }
       audioPipelineRef.current = new AudioPipeline(
-        mediaStreamRef.current,
+        input.file || mediaStreamRef.current,
         async (chunk) => {
-          console.log('Sending chunk to worker');
           vadWorkerRef.current?.postMessage({
             type: 'inference',
             data: chunk,
@@ -99,7 +107,7 @@ export default function useTranscription(
         mediaStreamRef.current = null;
       }
     }
-  }, [deviceId]);
+  }, [input.deviceId, input.file]);
 
   const stopStreaming = async () => {
     if (audioPipelineRef.current) {
@@ -110,6 +118,14 @@ export default function useTranscription(
       mediaStreamRef.current = null;
     }
     vadWorkerRef.current?.postMessage({ type: 'reset' });
+
+    if (fullAudioBufferRef.current) {
+      saveFloat32ArrayToWav(
+        fullAudioBufferRef.current,
+        SAMPLE_RATE,
+        `full_audio_buffer_ref`
+      );
+    }
 
     fullAudioBufferRef.current = new Float32Array(0);
 
@@ -145,7 +161,6 @@ export default function useTranscription(
         mergedOptions.speechProbThreshold,
         mergedOptions.silenceDuration,
         (utterance) => {
-          console.log('New utterance detected:', utterance);
           whisperWorkerRef.current?.postMessage({
             type: 'generate',
             data: utterance,
@@ -156,13 +171,11 @@ export default function useTranscription(
 
     // Create a callback function for messages from the worker thread.
     const vadOnMessageReceived = (e: MessageEvent) => {
-      console.log('Received message from worker:', e.data);
       switch (e.data.status) {
         case 'ready':
           console.log('Worker is ready');
           break;
         case 'complete':
-          console.log('Speech probability:', e.data.output);
           const speechProb = e.data.output.speechProb;
 
           // Handle speech state changes
@@ -173,14 +186,11 @@ export default function useTranscription(
           }
 
           // Concatenate the new chunk with the existing buffer
-          const newBuffer = new Float32Array(
-            fullAudioBufferRef.current.length + e.data.output.audioChunk.length
+          const newBuffer = concatenateFloat32Arrays(
+            fullAudioBufferRef.current,
+            e.data.output.audioChunk
           );
-          newBuffer.set(fullAudioBufferRef.current);
-          newBuffer.set(
-            e.data.output.audioChunk,
-            fullAudioBufferRef.current.length
-          );
+
           fullAudioBufferRef.current = newBuffer;
           utteranceSegmenterRef.current?.process(
             e.data.output.audioChunk,
@@ -193,8 +203,15 @@ export default function useTranscription(
     const whisperOnMessageReceived = (e: MessageEvent) => {
       console.log('Received message from worker:', e.data);
       switch (e.data.status) {
+        case 'start':
+          setMostRecentTranscription('');
+          break;
         case 'ready':
           console.log('Worker is ready');
+          break;
+        case 'update':
+          console.log('Transcription:', e.data.output);
+          setMostRecentTranscription((prev) => prev + e.data.output);
           break;
         case 'complete':
           console.log('Transcription:', e.data.output);
@@ -234,5 +251,6 @@ export default function useTranscription(
     toggleStreaming,
     isSpeaking,
     transcription,
+    mostRecentTranscription,
   };
 }

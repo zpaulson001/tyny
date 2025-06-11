@@ -52,20 +52,21 @@
 
 export class AudioPipeline {
   private audioContext: AudioContext | null = null;
-  private inputStream: MediaStream;
+  private inputSource: MediaStream | ArrayBuffer;
   private onChunk: ((chunk: Float32Array) => void | Promise<void>) | null =
     null;
-  private inputNode: MediaStreamAudioSourceNode | null = null;
+  private inputNode: MediaStreamAudioSourceNode | AudioBufferSourceNode | null =
+    null;
   private outletNode: AudioWorkletNode | null = null;
   private gainNode: GainNode | null = null;
   private compressorNode: DynamicsCompressorNode | null = null;
   private destinationNode: MediaStreamAudioDestinationNode | null = null;
 
   constructor(
-    inputStream: MediaStream,
+    inputSource: MediaStream | ArrayBuffer,
     onChunk?: (chunk: Float32Array) => void | Promise<void>
   ) {
-    this.inputStream = inputStream;
+    this.inputSource = inputSource;
     this.onChunk = onChunk || null;
   }
 
@@ -76,9 +77,17 @@ export class AudioPipeline {
 
     await this.audioContext.audioWorklet.addModule('/worklets/outlet.js');
 
-    this.inputNode = this.audioContext.createMediaStreamSource(
-      this.inputStream
-    );
+    if (this.inputSource instanceof MediaStream) {
+      this.inputNode = this.audioContext.createMediaStreamSource(
+        this.inputSource
+      );
+    } else {
+      const audioBuffer = await this.audioContext.decodeAudioData(
+        this.inputSource
+      );
+      this.inputNode = this.audioContext.createBufferSource();
+      this.inputNode.buffer = audioBuffer;
+    }
 
     this.destinationNode = this.audioContext.createMediaStreamDestination();
 
@@ -106,7 +115,6 @@ export class AudioPipeline {
 
     if (this.onChunk) {
       this.outletNode.port.onmessage = async (event) => {
-        console.log('Received chunk:', event.data);
         if (this.onChunk) {
           try {
             const result = this.onChunk(event.data);
@@ -124,9 +132,16 @@ export class AudioPipeline {
     this.compressorNode.connect(this.gainNode);
     this.gainNode.connect(this.outletNode);
     this.outletNode.connect(this.destinationNode);
+
+    if (this.inputNode instanceof AudioBufferSourceNode) {
+      this.inputNode.start();
+    }
   }
 
   async stop(): Promise<void> {
+    if (this.inputNode instanceof AudioBufferSourceNode) {
+      this.inputNode.stop();
+    }
     if (this.outletNode) {
       this.outletNode.disconnect();
       this.outletNode = null;
