@@ -22,6 +22,8 @@ class AutomaticSpeechRecognitionPipeline {
 }
 
 let processing = false;
+let transcriptionId = 0;
+
 async function generate(audio) {
   let startTime = performance.now();
   if (processing) return;
@@ -44,6 +46,7 @@ async function generate(audio) {
       self.postMessage({
         status: 'update',
         output: x,
+        id: transcriptionId,
       });
     },
   });
@@ -56,8 +59,9 @@ async function generate(audio) {
     status: 'complete',
     output: output.text,
     time: endTime - startTime,
-    id: performance.now(),
+    id: transcriptionId,
   });
+  transcriptionId++;
   processing = false;
 }
 
