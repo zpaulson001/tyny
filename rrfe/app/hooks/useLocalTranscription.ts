@@ -5,6 +5,7 @@ import {
   saveFloat32ArrayToWav,
 } from '~/lib/audio-utils';
 import UtteranceSegmenter from '~/lib/utterance-segmenter';
+import { LANGUAGES } from '~/components/LanguageSelect';
 
 const SAMPLE_RATE = 16000;
 
@@ -22,33 +23,26 @@ type StreamState = (typeof STREAM_STATE)[keyof typeof STREAM_STATE];
  */
 interface TranscriptionOptions {
   /** Threshold for speech probability (0-1) */
+  input: {
+    deviceId?: string;
+    file?: ArrayBuffer;
+  };
+  targetLanguage?: (typeof LANGUAGES)[keyof typeof LANGUAGES];
   speechProbThreshold?: number;
   silenceDuration?: number;
 }
-
-const DEFAULT_OPTIONS: Required<TranscriptionOptions> = {
-  speechProbThreshold: 0.5,
-  silenceDuration: 0.7,
-};
 
 interface Transcription {
   id: number;
   text: string;
   time: number;
+  translation?: string;
 }
 
-export default function useLocalTranscription(
-  input: {
-    deviceId?: string;
-    file?: ArrayBuffer;
-  },
-  options: Partial<TranscriptionOptions> = {}
-) {
-  const [mostRecentTranscription, setMostRecentTranscription] =
-    useState<string>('');
-  const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
+export default function useLocalTranscription(options: TranscriptionOptions) {
   const fullAudioBufferRef = useRef<Float32Array>(new Float32Array(0));
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const shouldStartNewTranscription = useRef<boolean>(true);
   const [streamState, setStreamState] = useState<StreamState>(
     STREAM_STATE.IDLE
   );
@@ -57,8 +51,130 @@ export default function useLocalTranscription(
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const vadWorkerRef = useRef<Worker | null>(null);
   const whisperWorkerRef = useRef<Worker | null>(null);
+  const translatorWorkerRef = useRef<Worker | null>(null);
   const audioPipelineRef = useRef<AudioPipeline | null>(null);
   const utteranceSegmenterRef = useRef<UtteranceSegmenter | null>(null);
+  const {
+    input,
+    targetLanguage,
+    speechProbThreshold = 0.5,
+    silenceDuration = 0.7,
+  } = options;
+
+  const removeEventListeners = () => {
+    vadWorkerRef.current?.removeEventListener('message', vadOnMessageReceived);
+    translatorWorkerRef.current?.removeEventListener(
+      'message',
+      translatorOnMessageReceived
+    );
+    whisperWorkerRef.current?.removeEventListener(
+      'message',
+      whisperOnMessageReceived
+    );
+  };
+
+  const whisperOnMessageReceived = useCallback(
+    (e: MessageEvent) => {
+      switch (e.data.status) {
+        case 'start':
+          shouldStartNewTranscription.current = true;
+          break;
+        case 'ready':
+          console.log('Worker is ready');
+          break;
+        case 'update':
+          console.log('Transcription:', e.data);
+          console.log(
+            'shouldStartNewTranscription',
+            shouldStartNewTranscription.current
+          );
+          if (shouldStartNewTranscription.current) {
+            const newTranscription = {
+              id: e.data.id,
+              text: e.data.output,
+              time: e.data.time,
+            };
+            shouldStartNewTranscription.current = false;
+            setTranscription((prev) => {
+              console.log('Setting new transcription', e.data.output);
+              return [...prev, newTranscription];
+            });
+          } else {
+            const newTransciptionArray = [...transcription];
+            newTransciptionArray[e.data.id].text += e.data.output;
+            setTranscription(newTransciptionArray);
+          }
+          break;
+        case 'complete':
+          console.log('Final Transcription:', e.data.output);
+          if (targetLanguage) {
+            console.log('Sending message to translator worker');
+            translatorWorkerRef.current?.postMessage({
+              type: 'generate',
+              data: {
+                text: e.data.output,
+                targetLanguage,
+              },
+              id: e.data.id,
+            });
+          }
+          break;
+      }
+    },
+    [targetLanguage, transcription]
+  );
+
+  // Create a callback function for messages from the worker thread.
+  const vadOnMessageReceived = useCallback((e: MessageEvent) => {
+    switch (e.data.status) {
+      case 'ready':
+        console.log('Worker is ready');
+        break;
+      case 'complete':
+        const speechProb = e.data.output.speechProb;
+
+        // Handle speech state changes
+        if (speechProb >= speechProbThreshold) {
+          setIsSpeaking(true);
+        } else {
+          setIsSpeaking(false);
+        }
+
+        // Concatenate the new chunk with the existing buffer
+        const newBuffer = concatenateFloat32Arrays(
+          fullAudioBufferRef.current,
+          e.data.output.audioChunk
+        );
+
+        fullAudioBufferRef.current = newBuffer;
+        utteranceSegmenterRef.current?.process(
+          e.data.output.audioChunk,
+          e.data.output.speechProb
+        );
+        break;
+    }
+  }, []);
+
+  const translatorOnMessageReceived = useCallback(
+    (e: MessageEvent) => {
+      switch (e.data.status) {
+        case 'update':
+          console.log('Translation:', e.data);
+          const newTranscription = [...transcription];
+          if ('translation' in newTranscription[e.data.id]) {
+            newTranscription[e.data.id].translation += e.data.output;
+          } else {
+            newTranscription[e.data.id].translation = e.data.output;
+          }
+          setTranscription(newTranscription);
+          break;
+        case 'complete':
+          console.log('Translation:', e.data.output);
+          break;
+      }
+    },
+    [transcription]
+  );
 
   const toggleStreaming = async () => {
     if (streamState === STREAM_STATE.STREAMING) {
@@ -156,10 +272,22 @@ export default function useLocalTranscription(
       console.log('Worker created successfully');
     }
 
+    if (!translatorWorkerRef.current) {
+      console.log('Creating new Translator worker...');
+      translatorWorkerRef.current = new Worker(
+        new URL('../workers/translator.js', import.meta.url),
+        {
+          type: 'module',
+        }
+      );
+      translatorWorkerRef.current.postMessage({ type: 'load' });
+      console.log('Worker created successfully');
+    }
+
     if (!utteranceSegmenterRef.current) {
       utteranceSegmenterRef.current = new UtteranceSegmenter(
-        mergedOptions.speechProbThreshold,
-        mergedOptions.silenceDuration,
+        speechProbThreshold,
+        silenceDuration,
         (utterance) => {
           whisperWorkerRef.current?.postMessage({
             type: 'generate',
@@ -169,88 +297,27 @@ export default function useLocalTranscription(
       );
     }
 
-    // Create a callback function for messages from the worker thread.
-    const vadOnMessageReceived = (e: MessageEvent) => {
-      switch (e.data.status) {
-        case 'ready':
-          console.log('Worker is ready');
-          break;
-        case 'complete':
-          const speechProb = e.data.output.speechProb;
+    removeEventListeners();
 
-          // Handle speech state changes
-          if (speechProb >= mergedOptions.speechProbThreshold) {
-            setIsSpeaking(true);
-          } else {
-            setIsSpeaking(false);
-          }
-
-          // Concatenate the new chunk with the existing buffer
-          const newBuffer = concatenateFloat32Arrays(
-            fullAudioBufferRef.current,
-            e.data.output.audioChunk
-          );
-
-          fullAudioBufferRef.current = newBuffer;
-          utteranceSegmenterRef.current?.process(
-            e.data.output.audioChunk,
-            e.data.output.speechProb
-          );
-          break;
-      }
-    };
-
-    const whisperOnMessageReceived = (e: MessageEvent) => {
-      console.log('Received message from worker:', e.data);
-      switch (e.data.status) {
-        case 'start':
-          setMostRecentTranscription('');
-          break;
-        case 'ready':
-          console.log('Worker is ready');
-          break;
-        case 'update':
-          console.log('Transcription:', e.data.output);
-          setMostRecentTranscription((prev) => prev + e.data.output);
-          break;
-        case 'complete':
-          console.log('Transcription:', e.data.output);
-          setTranscription((prev) => [
-            ...prev,
-            {
-              id: e.data.id,
-              text: e.data.output,
-              time: e.data.time,
-            },
-          ]);
-          break;
-      }
-    };
     // Attach the callback function as an event listener.
     vadWorkerRef.current.addEventListener('message', vadOnMessageReceived);
-    whisperWorkerRef.current.addEventListener(
+    translatorWorkerRef.current?.addEventListener(
+      'message',
+      translatorOnMessageReceived
+    );
+    whisperWorkerRef.current?.addEventListener(
       'message',
       whisperOnMessageReceived
     );
 
     // Define a cleanup function for when the component is unmounted.
-    return () => {
-      vadWorkerRef.current?.removeEventListener(
-        'message',
-        vadOnMessageReceived
-      );
-      whisperWorkerRef.current?.removeEventListener(
-        'message',
-        whisperOnMessageReceived
-      );
-    };
-  }, []);
+    return removeEventListeners;
+  }, [whisperOnMessageReceived]);
 
   return {
     streamState,
     toggleStreaming,
     isSpeaking,
     transcription,
-    mostRecentTranscription,
   };
 }
