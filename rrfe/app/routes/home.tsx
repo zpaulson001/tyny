@@ -1,13 +1,14 @@
 import { Toolbar } from '~/components/ToolBar';
 import type { Route } from './+types/home';
 import useLocalTranscription from '~/hooks/useLocalTranscription';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'Tyny | Real-time translation' }];
 }
 
 export default function Home() {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('spa_Latn');
   const [fileBuffer, setFileBuffer] = useState<ArrayBuffer | undefined>(
@@ -40,16 +41,27 @@ export default function Home() {
       targetLanguage: selectedLanguage,
     });
 
+  useEffect(() => {
+    if (scrollRef.current) {
+      setTimeout(() => {
+        scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 0);
+    }
+  }, [transcription]);
+
   return (
     <div className="h-screen w-full border border-green-500">
       <div className="h-full w-full max-w-5xl mx-auto grid grid-rows-[1fr_auto] gap-2 border border-red-500 p-4">
-        <div className="w-full grid gap-2 overflow-y-auto">
-          {transcription.map((t) => (
-            <div key={t.id} className="grid grid-cols-2 gap-2">
-              <p>{t.text}</p>
-              <p>{t.translation}</p>
-            </div>
-          ))}
+        <div className="border border-blue-500 overflow-y-auto">
+          <div className="flex flex-col gap-2 border border-yellow-500">
+            {transcription.map((t) => (
+              <div key={t.id} className="grid grid-cols-2 gap-2">
+                <p>{t.text}</p>
+                <p>{t.translation}</p>
+              </div>
+            ))}
+            <div ref={scrollRef}></div>
+          </div>
         </div>
         <Toolbar
           selectedDevice={selectedDevice}
