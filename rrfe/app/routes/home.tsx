@@ -2,6 +2,8 @@ import { Toolbar } from '~/components/ToolBar';
 import type { Route } from './+types/home';
 import useLocalTranscription from '~/hooks/useLocalTranscription';
 import { useEffect, useRef, useState } from 'react';
+import { AlertDialog, AlertDialogContent } from '~/components/ui/alert-dialog';
+import { LoaderCircle } from 'lucide-react';
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'Tyny | Real-time translation' }];
@@ -32,8 +34,13 @@ export default function Home() {
     }
   };
 
-  const { streamState, toggleStreaming, isSpeaking, transcription } =
-    useLocalTranscription({
+  const {
+    streamState,
+    toggleStreaming,
+    isSpeaking,
+    transcription,
+    isLoadingModels,
+  } = useLocalTranscription({
       input: {
         deviceId: selectedDevice,
         file: fileBuffer,
@@ -63,6 +70,14 @@ export default function Home() {
             <div ref={scrollRef}></div>
           </div>
         </div>
+        <AlertDialog open={isLoadingModels}>
+          <AlertDialogContent>
+            <div className="mx-auto flex items-center gap-2">
+              <LoaderCircle className="animate-spin" />
+              Loading models
+            </div>
+          </AlertDialogContent>
+        </AlertDialog>
         <Toolbar
           selectedDevice={selectedDevice}
           setSelectedDevice={setSelectedDevice}

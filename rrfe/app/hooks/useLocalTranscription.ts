@@ -61,6 +61,14 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
     silenceDuration = 0.7,
   } = options;
 
+  const [isLoadingModels, setIsLoadingModels] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (whisperReady && translatorReady) {
+      setIsLoadingModels(false);
+    }
+  }, [whisperReady, translatorReady]);
+
   const removeEventListeners = () => {
     vadWorkerRef.current?.removeEventListener('message', vadOnMessageReceived);
     translatorWorkerRef.current?.removeEventListener(
@@ -81,6 +89,7 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
           break;
         case 'ready':
           console.log('Worker is ready');
+          setWhisperReady(true);
           break;
         case 'update':
           console.log('Transcription:', e.data);
@@ -158,6 +167,9 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
   const translatorOnMessageReceived = useCallback(
     (e: MessageEvent) => {
       switch (e.data.status) {
+        case 'ready':
+          setTranslatorReady(true);
+          break;
         case 'update':
           console.log('Translation:', e.data);
           const newTranscription = [...transcription];
@@ -281,6 +293,7 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
         }
       );
       translatorWorkerRef.current.postMessage({ type: 'load' });
+      setIsLoadingModels(true);
       console.log('Worker created successfully');
     }
 
@@ -319,5 +332,6 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
     toggleStreaming,
     isSpeaking,
     transcription,
+    isLoadingModels,
   };
 }
