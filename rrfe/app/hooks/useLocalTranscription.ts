@@ -61,13 +61,7 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
     silenceDuration = 0.7,
   } = options;
 
-  const [isLoadingModels, setIsLoadingModels] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (whisperReady && translatorReady) {
-      setIsLoadingModels(false);
-    }
-  }, [whisperReady, translatorReady]);
+  const isLoadingModels = !whisperReady || !translatorReady;
 
   const removeEventListeners = () => {
     vadWorkerRef.current?.removeEventListener('message', vadOnMessageReceived);
@@ -293,7 +287,6 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
         }
       );
       translatorWorkerRef.current.postMessage({ type: 'load' });
-      setIsLoadingModels(true);
       console.log('Worker created successfully');
     }
 
