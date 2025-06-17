@@ -46,12 +46,12 @@ export default function Home() {
     transcription,
     isLoadingModels,
   } = useLocalTranscription({
-      input: {
-        deviceId: selectedDevice,
-        file: fileBuffer,
-      },
-      targetLanguage: selectedLanguage,
-    });
+    input: {
+      deviceId: selectedDevice,
+      file: fileBuffer,
+    },
+    targetLanguage: selectedLanguage,
+  });
 
   useEffect(() => {
     if (scrollRef.current) {
