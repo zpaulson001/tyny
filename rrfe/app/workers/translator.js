@@ -43,6 +43,8 @@ async function generate(text, targetLanguage, id) {
       throw new Error('No target language specified');
     }
 
+    let tokenId = 0;
+
     const streamer = new TextStreamer(translator.tokenizer, {
       skip_special_tokens: true,
       skip_prompt: true,
@@ -50,8 +52,10 @@ async function generate(text, targetLanguage, id) {
         self.postMessage({
           status: 'update',
           output: x,
-          id: id,
+          transcriptionId: id,
+          tokenId: tokenId,
         });
+        tokenId++;
       },
     });
 

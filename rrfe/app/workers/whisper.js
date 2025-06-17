@@ -39,15 +39,20 @@ async function generate(audio) {
     }
   );
 
+  let tokenId = 0;
+
   const streamer = new TextStreamer(transcriber.tokenizer, {
     skip_special_tokens: true,
     skip_prompt: true,
     callback_function: (x) => {
+      console.log('Whisper callback', x);
       self.postMessage({
         status: 'update',
         output: x,
-        id: transcriptionId,
+        transcriptionId: transcriptionId,
+        tokenId: tokenId,
       });
+      tokenId++;
     },
   });
 
@@ -59,7 +64,7 @@ async function generate(audio) {
     status: 'complete',
     output: output.text,
     time: endTime - startTime,
-    id: transcriptionId,
+    transcriptionId: transcriptionId,
   });
   transcriptionId++;
   processing = false;

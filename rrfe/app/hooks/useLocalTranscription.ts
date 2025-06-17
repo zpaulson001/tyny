@@ -32,16 +32,28 @@ interface TranscriptionOptions {
   silenceDuration?: number;
 }
 
+interface TranscriptionUpdateMessage {
+  output: string;
+  tokenId: number;
+}
+
+interface TranslationUpdateMessage {
+  output: string;
+  tokenId: number;
+}
+
 interface Transcription {
-  id: number;
-  text: string;
+  transcriptionId: number;
+  transcription: TranscriptionUpdateMessage[];
   time: number;
-  translation?: string;
+  translation?: TranslationUpdateMessage[];
 }
 
 export default function useLocalTranscription(options: TranscriptionOptions) {
   const fullAudioBufferRef = useRef<Float32Array>(new Float32Array(0));
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const [whisperReady, setWhisperReady] = useState<boolean>(false);
+  const [translatorReady, setTranslatorReady] = useState<boolean>(false);
   const shouldStartNewTranscription = useRef<boolean>(true);
   const [streamState, setStreamState] = useState<StreamState>(
     STREAM_STATE.IDLE
@@ -92,20 +104,41 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
             shouldStartNewTranscription.current
           );
           if (shouldStartNewTranscription.current) {
-            const newTranscription = {
-              id: e.data.id,
-              text: e.data.output,
+            const newTranscription: Transcription = {
+              transcriptionId: e.data.transcriptionId,
+              transcription: [
+                {
+                  tokenId: e.data.tokenId,
+                  output: e.data.output,
+                },
+              ],
               time: e.data.time,
             };
             shouldStartNewTranscription.current = false;
             setTranscription((prev) => {
               console.log('Setting new transcription', e.data.output);
+              console.log([...prev, newTranscription]);
               return [...prev, newTranscription];
             });
           } else {
-            const newTransciptionArray = [...transcription];
-            newTransciptionArray[e.data.id].text += e.data.output;
-            setTranscription(newTransciptionArray);
+            setTranscription((prev) => {
+              const transcriptionArr =
+                prev[e.data.transcriptionId].transcription;
+              if (
+                e.data.tokenId <
+                prev[e.data.transcriptionId].transcription.length
+              ) {
+                return prev;
+              } else {
+                const newTranscriptionArr = [...prev];
+                newTranscriptionArr[e.data.transcriptionId].transcription.push({
+                  tokenId: e.data.tokenId,
+                  output: e.data.output,
+                });
+                console.log('Pushing new transcription', newTranscriptionArr);
+                return newTranscriptionArr;
+              }
+            });
           }
           break;
         case 'complete':
@@ -118,7 +151,7 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
                 text: e.data.output,
                 targetLanguage,
               },
-              id: e.data.id,
+              id: e.data.transcriptionId,
             });
           }
           break;
@@ -165,14 +198,38 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
           setTranslatorReady(true);
           break;
         case 'update':
-          console.log('Translation:', e.data);
-          const newTranscription = [...transcription];
-          if ('translation' in newTranscription[e.data.id]) {
-            newTranscription[e.data.id].translation += e.data.output;
-          } else {
-            newTranscription[e.data.id].translation = e.data.output;
-          }
-          setTranscription(newTranscription);
+          // firt ensure that translation array exists
+          setTranscription((prev) => {
+            console.log('Translation:', e.data);
+            if (!('translation' in prev[e.data.transcriptionId])) {
+              prev[e.data.transcriptionId].translation = [];
+            }
+            if (prev[e.data.transcriptionId].translation?.length === 0) {
+              const newTranscriptionArr = [...prev];
+              newTranscriptionArr[e.data.transcriptionId].translation?.push({
+                tokenId: e.data.tokenId,
+                output: e.data.output,
+              });
+              return newTranscriptionArr;
+            } else {
+              const prevTranslation = prev[e.data.transcriptionId].translation;
+              if (prevTranslation !== undefined) {
+                if (e.data.tokenId < prevTranslation.length) {
+                  return prev;
+                } else {
+                  const newTranscriptionArr = [...prev];
+                  newTranscriptionArr[e.data.transcriptionId].translation?.push(
+                    {
+                      tokenId: e.data.tokenId,
+                      output: e.data.output,
+                    }
+                  );
+                  return newTranscriptionArr;
+                }
+              }
+              return prev;
+            }
+          });
           break;
         case 'complete':
           console.log('Translation:', e.data.output);

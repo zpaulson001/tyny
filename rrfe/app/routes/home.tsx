@@ -62,9 +62,9 @@ export default function Home() {
         <div className="border border-blue-500 overflow-y-auto">
           <div className="flex flex-col gap-2 border border-yellow-500">
             {transcription.map((t) => (
-              <div key={t.id} className="grid grid-cols-2 gap-2">
-                <p>{t.text}</p>
-                <p>{t.translation}</p>
+              <div key={t.transcriptionId} className="grid grid-cols-2 gap-2">
+                <p>{t.transcription.map((t) => t.output).join('')}</p>
+                <p>{t.translation?.map((t) => t.output).join('')}</p>
               </div>
             ))}
             <div ref={scrollRef}></div>
