@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import useLocalTranscription from '../hooks/useLocalTranscription';
 import { Input } from './ui/input';
 import { LanguageSelect } from './LanguageSelect';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
