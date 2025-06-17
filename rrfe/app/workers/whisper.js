@@ -45,7 +45,6 @@ async function generate(audio) {
     skip_special_tokens: true,
     skip_prompt: true,
     callback_function: (x) => {
-      console.log('Whisper callback', x);
       self.postMessage({
         status: 'update',
         output: x,

@@ -99,10 +99,6 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
           break;
         case 'update':
           console.log('Transcription:', e.data);
-          console.log(
-            'shouldStartNewTranscription',
-            shouldStartNewTranscription.current
-          );
           if (shouldStartNewTranscription.current) {
             const newTranscription: Transcription = {
               transcriptionId: e.data.transcriptionId,
@@ -116,8 +112,6 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
             };
             shouldStartNewTranscription.current = false;
             setTranscription((prev) => {
-              console.log('Setting new transcription', e.data.output);
-              console.log([...prev, newTranscription]);
               return [...prev, newTranscription];
             });
           } else {
@@ -135,7 +129,6 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
                   tokenId: e.data.tokenId,
                   output: e.data.output,
                 });
-                console.log('Pushing new transcription', newTranscriptionArr);
                 return newTranscriptionArr;
               }
             });
@@ -144,7 +137,6 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
         case 'complete':
           console.log('Final Transcription:', e.data.output);
           if (targetLanguage) {
-            console.log('Sending message to translator worker');
             translatorWorkerRef.current?.postMessage({
               type: 'generate',
               data: {
@@ -199,8 +191,8 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
           break;
         case 'update':
           // firt ensure that translation array exists
+          console.log('Translation:', e.data);
           setTranscription((prev) => {
-            console.log('Translation:', e.data);
             if (!('translation' in prev[e.data.transcriptionId])) {
               prev[e.data.transcriptionId].translation = [];
             }
