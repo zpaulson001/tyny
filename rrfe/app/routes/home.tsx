@@ -2,8 +2,13 @@ import { Toolbar } from '~/components/ToolBar';
 import type { Route } from './+types/home';
 import useLocalTranscription from '~/hooks/useLocalTranscription';
 import { useEffect, useRef, useState } from 'react';
-import { AlertDialog, AlertDialogContent } from '~/components/ui/alert-dialog';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogTitle,
+} from '~/components/ui/alert-dialog';
 import { LoaderCircle } from 'lucide-react';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'Tyny | Real-time translation' }];
@@ -72,6 +77,9 @@ export default function Home() {
         </div>
         <AlertDialog open={isLoadingModels}>
           <AlertDialogContent>
+            <VisuallyHidden>
+              <AlertDialogTitle>Loading models</AlertDialogTitle>
+            </VisuallyHidden>
             <div className="mx-auto flex items-center gap-2">
               <LoaderCircle className="animate-spin" />
               Loading models
