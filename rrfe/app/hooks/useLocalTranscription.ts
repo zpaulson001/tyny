@@ -5,7 +5,7 @@ import {
   saveFloat32ArrayToWav,
 } from '~/lib/audio-utils';
 import UtteranceSegmenter from '~/lib/utterance-segmenter';
-import { LANGUAGES } from '~/components/LanguageSelect';
+import type { AvailableLanguages } from '~/components/LanguageSelect';
 
 const SAMPLE_RATE = 16000;
 
@@ -27,7 +27,7 @@ interface TranscriptionOptions {
     deviceId?: string;
     file?: ArrayBuffer;
   };
-  targetLanguage?: (typeof LANGUAGES)[keyof typeof LANGUAGES];
+  targetLanguage?: AvailableLanguages;
   speechProbThreshold?: number;
   silenceDuration?: number;
 }
@@ -290,13 +290,13 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
     }
     vadWorkerRef.current?.postMessage({ type: 'reset' });
 
-    if (fullAudioBufferRef.current) {
-      saveFloat32ArrayToWav(
-        fullAudioBufferRef.current,
-        SAMPLE_RATE,
-        `full_audio_buffer_ref`
-      );
-    }
+    // if (fullAudioBufferRef.current) {
+    //   saveFloat32ArrayToWav(
+    //     fullAudioBufferRef.current,
+    //     SAMPLE_RATE,
+    //     `full_audio_buffer_ref`
+    //   );
+    // }
 
     fullAudioBufferRef.current = new Float32Array(0);
 

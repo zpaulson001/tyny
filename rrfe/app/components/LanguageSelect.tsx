@@ -5,7 +5,10 @@ import { SelectContent } from './ui/select';
 
 import { Select } from './ui/select';
 
-export const LANGUAGES = {
+export type AvailableLanguages =
+  (typeof AVAILABLE_LANGUAGES)[keyof typeof AVAILABLE_LANGUAGES];
+
+const AVAILABLE_LANGUAGES = {
   'Acehnese (Arabic script)': 'ace_Arab',
   'Acehnese (Latin script)': 'ace_Latn',
   Afrikaans: 'afr_Latn',
@@ -210,22 +213,24 @@ export const LANGUAGES = {
   Yoruba: 'yor_Latn',
   'Yue Chinese': 'yue_Hant',
   Zulu: 'zul_Latn',
-};
+} as const;
 
 export function LanguageSelect({
   onChange,
   value,
+  disabled,
 }: {
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger icon={<Languages />}>
         <SelectValue placeholder="Select languages" />
       </SelectTrigger>
       <SelectContent>
-        {Object.entries(LANGUAGES).map(([label, value]) => (
+        {Object.entries(AVAILABLE_LANGUAGES).map(([label, value]) => (
           <SelectItem key={value} value={value}>
             {label}
           </SelectItem>

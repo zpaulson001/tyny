@@ -16,11 +16,13 @@ interface MediaDeviceInfo {
 interface DeviceSelectProps {
   selectedDevice: string;
   setSelectedDevice: (deviceId: string) => void;
+  disabled?: boolean;
 }
 
 export function DeviceSelect({
   selectedDevice,
   setSelectedDevice,
+  disabled,
 }: DeviceSelectProps) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
 
@@ -52,7 +54,11 @@ export function DeviceSelect({
   }, []);
 
   return (
-    <Select value={selectedDevice} onValueChange={setSelectedDevice}>
+    <Select
+      value={selectedDevice}
+      onValueChange={setSelectedDevice}
+      disabled={disabled}
+    >
       <SelectTrigger icon={<Mic />}>
         <SelectValue placeholder="Select a device" />
       </SelectTrigger>

@@ -11,11 +11,12 @@ import {
   Play,
   Ellipsis,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
 
 import { Input } from './ui/input';
 import { LanguageSelect } from './LanguageSelect';
+import type { AvailableLanguages } from './LanguageSelect';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
+import { useToolbarContext } from '~/hooks/ToolbarContext';
 
 function PlayStopButton({
   streamState,
@@ -66,31 +67,37 @@ function PlayStopButton({
 interface ToolbarProps {
   streamState: string;
   toggleStreaming: () => void;
-  selectedDevice: string;
-  setSelectedDevice: (device: string) => void;
-  selectedLanguage: string;
-  setSelectedLanguage: (language: string) => void;
   isSpeaking: boolean;
-  onFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 export function Toolbar({
-  selectedDevice,
-  setSelectedDevice,
-  selectedLanguage,
-  setSelectedLanguage,
   isSpeaking,
-  onFileInputChange,
   streamState,
   toggleStreaming,
 }: ToolbarProps) {
-  const [mode, setMode] = useState<'file' | 'mic'>('mic');
+  const {
+    state,
+    setSelectedDeviceId,
+    setSelectedLanguage,
+    setFileBuffer,
+    setMode,
+  } = useToolbarContext();
 
-  const handleModeChange = (value: string) => {
-    if (value !== 'file' && value !== 'mic') {
-      throw new Error('Invalid mode. Must be either "file" or "mic".');
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+
+      reader.onload = async (e) => {
+        setFileBuffer(e.target?.result as ArrayBuffer);
+      };
+
+      reader.onerror = (err) => {
+        console.error('FileReader error:', err);
+      };
+
+      reader.readAsArrayBuffer(file);
     }
-    setMode(value);
   };
 
   return (
@@ -99,9 +106,10 @@ export function Toolbar({
         <ToggleGroup
           type="single"
           variant="outline"
-          value={mode}
-          onValueChange={handleModeChange}
+          value={state.mode}
+          onValueChange={(value) => setMode(value as 'file' | 'mic')}
           className="flex items-center"
+          disabled={streamState !== 'idle'}
         >
           <ToggleGroupItem value="file" aria-label="File Mode">
             <FileMusic />
@@ -113,21 +121,29 @@ export function Toolbar({
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-      {mode === 'file' ? (
+      {state.mode === 'file' ? (
         <Input
           type="file"
           accept="audio/*"
-          onChange={onFileInputChange}
+          onChange={handleFileChange}
           className="min-w-48 flex-1"
+          disabled={streamState !== 'idle'}
         />
       ) : (
         <DeviceSelect
-          selectedDevice={selectedDevice}
-          setSelectedDevice={setSelectedDevice}
+          selectedDevice={state.selectedDeviceId}
+          setSelectedDevice={setSelectedDeviceId}
+          disabled={streamState !== 'idle'}
         />
       )}
 
-      <LanguageSelect value={selectedLanguage} onChange={setSelectedLanguage} />
+      <LanguageSelect
+        value={state.selectedLanguage}
+        onChange={(language) =>
+          setSelectedLanguage(language as AvailableLanguages)
+        }
+        disabled={streamState !== 'idle'}
+      />
 
       {isSpeaking ? (
         <div className="flex items-center space-x-2">
@@ -140,7 +156,7 @@ export function Toolbar({
       )}
       <PlayStopButton
         streamState={streamState}
-        mode={mode}
+        mode={state.mode}
         onClick={toggleStreaming}
       />
     </div>

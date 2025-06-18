@@ -1,7 +1,7 @@
 import { Toolbar } from '~/components/ToolBar';
 import type { Route } from './+types/home';
 import useLocalTranscription from '~/hooks/useLocalTranscription';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -9,6 +9,7 @@ import {
 } from '~/components/ui/alert-dialog';
 import { LoaderCircle } from 'lucide-react';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
+import { useToolbarContext } from '~/hooks/ToolbarContext';
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'Tyny | Real-time translation' }];
@@ -16,28 +17,7 @@ export function meta({}: Route.MetaArgs) {
 
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [selectedDevice, setSelectedDevice] = useState<string>('');
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('spa_Latn');
-  const [fileBuffer, setFileBuffer] = useState<ArrayBuffer | undefined>(
-    undefined
-  );
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-
-      reader.onload = async (e) => {
-        setFileBuffer(e.target?.result as ArrayBuffer);
-      };
-
-      reader.onerror = (err) => {
-        console.error('FileReader error:', err);
-      };
-
-      reader.readAsArrayBuffer(file);
-    }
-  };
+  const { state } = useToolbarContext();
 
   const {
     streamState,
@@ -47,10 +27,10 @@ export default function Home() {
     isLoadingModels,
   } = useLocalTranscription({
     input: {
-      deviceId: selectedDevice,
-      file: fileBuffer,
+      deviceId: state.selectedDeviceId,
+      file: state.fileBuffer,
     },
-    targetLanguage: selectedLanguage,
+    targetLanguage: state.selectedLanguage,
   });
 
   useEffect(() => {
@@ -87,12 +67,7 @@ export default function Home() {
           </AlertDialogContent>
         </AlertDialog>
         <Toolbar
-          selectedDevice={selectedDevice}
-          setSelectedDevice={setSelectedDevice}
-          selectedLanguage={selectedLanguage}
-          setSelectedLanguage={setSelectedLanguage}
           isSpeaking={isSpeaking}
-          onFileInputChange={handleFileChange}
           streamState={streamState}
           toggleStreaming={toggleStreaming}
         />
