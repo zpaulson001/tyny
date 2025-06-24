@@ -16,7 +16,7 @@ import { Input } from './ui/input';
 import { LanguageSelect } from './LanguageSelect';
 import type { AvailableLanguages } from './LanguageSelect';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
-import { useToolbarContext } from '~/hooks/ToolbarContext';
+import { useToolbar, useToolbarActions } from '~/stores/toolbar';
 
 function PlayStopButton({
   streamState,
@@ -75,13 +75,10 @@ export function Toolbar({
   streamState,
   toggleStreaming,
 }: ToolbarProps) {
-  const {
-    state,
-    setSelectedDeviceId,
-    setSelectedLanguage,
-    setFileBuffer,
-    setMode,
-  } = useToolbarContext();
+  const { mode, selectedDeviceId, selectedLanguage } = useToolbar();
+
+  const { setFileBuffer, setMode, setSelectedDeviceId, setSelectedLanguage } =
+    useToolbarActions();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -106,7 +103,7 @@ export function Toolbar({
         <ToggleGroup
           type="single"
           variant="outline"
-          value={state.mode}
+          value={mode}
           onValueChange={(value) => setMode(value as 'file' | 'mic')}
           className="flex items-center"
           disabled={streamState !== 'idle'}
@@ -121,7 +118,7 @@ export function Toolbar({
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-      {state.mode === 'file' ? (
+      {mode === 'file' ? (
         <Input
           type="file"
           accept="audio/*"
@@ -131,14 +128,14 @@ export function Toolbar({
         />
       ) : (
         <DeviceSelect
-          selectedDevice={state.selectedDeviceId}
+          selectedDevice={selectedDeviceId}
           setSelectedDevice={setSelectedDeviceId}
           disabled={streamState !== 'idle'}
         />
       )}
 
       <LanguageSelect
-        value={state.selectedLanguage}
+        value={selectedLanguage}
         onChange={(language) =>
           setSelectedLanguage(language as AvailableLanguages)
         }
@@ -156,7 +153,7 @@ export function Toolbar({
       )}
       <PlayStopButton
         streamState={streamState}
-        mode={state.mode}
+        mode={mode}
         onClick={toggleStreaming}
       />
     </div>

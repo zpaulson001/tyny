@@ -9,7 +9,7 @@ import {
 } from '~/components/ui/alert-dialog';
 import { LoaderCircle } from 'lucide-react';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { useToolbarContext } from '~/hooks/ToolbarContext';
+import { useToolbar } from '~/stores/toolbar';
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'Tyny | Real-time translation' }];
@@ -17,7 +17,7 @@ export function meta({}: Route.MetaArgs) {
 
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { state } = useToolbarContext();
+  const { selectedDeviceId, fileBuffer, selectedLanguage } = useToolbar();
 
   const {
     streamState,
@@ -27,10 +27,10 @@ export default function Home() {
     isLoadingModels,
   } = useLocalTranscription({
     input: {
-      deviceId: state.selectedDeviceId,
-      file: state.fileBuffer,
+      deviceId: selectedDeviceId,
+      file: fileBuffer,
     },
-    targetLanguage: state.selectedLanguage,
+    targetLanguage: selectedLanguage,
   });
 
   useEffect(() => {
