@@ -113,7 +113,6 @@ export default function useTranscription(
             onChunkBufferRef.current,
             chunk
           );
-          console.log('Sending chunk to worker');
           const currentSequenceNumber = lastSequenceNumberRef.current;
           sentChunksRef.current.add(currentSequenceNumber);
           vadWorkerRef.current?.postMessage({

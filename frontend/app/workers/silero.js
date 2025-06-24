@@ -6,7 +6,6 @@ let stateTensor = new ort.Tensor(
   new Float32Array(2 * 1 * 128),
   [2, 1, 128]
 );
-console.log('LSTM states initialized');
 
 const inferenceQueue = [];
 let isProcessing = false;
@@ -65,7 +64,6 @@ async function runVADInference() {
     const outputs = await session.run(inputs);
     const speechProb = outputs.output.data[0]; // The probability of speech
     const state = outputs.stateN.data;
-    // console.log('State:', state);
     stateTensor = new ort.Tensor('float32', state, [2, 1, 128]);
 
     self.postMessage({
@@ -94,7 +92,6 @@ function enqueueInference(audioChunk, sequenceNumber) {
 }
 
 async function load() {
-  console.log('Starting model load...');
   self.postMessage({
     status: 'loading',
     data: 'Loading model...',
@@ -102,7 +99,6 @@ async function load() {
 
   try {
     await SileroONNX.getSession();
-    console.log('Model loaded successfully');
     self.postMessage({ status: 'ready' });
   } catch (error) {
     console.error('Failed to load model:', error);
@@ -135,7 +131,6 @@ self.addEventListener('message', async (e) => {
       break;
 
     case 'healthcheck':
-      console.log('Health check received');
       self.postMessage({ status: 'ready' });
       break;
     case 'reset':
@@ -145,5 +140,4 @@ self.addEventListener('message', async (e) => {
 });
 
 // Send ready message when worker starts
-console.log('Worker initialized');
 self.postMessage({ status: 'ready' });

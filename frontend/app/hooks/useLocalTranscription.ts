@@ -94,18 +94,15 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
           shouldStartNewTranscription.current = true;
           break;
         case 'ready':
-          console.log('Worker is ready');
           setWhisperReady(true);
           break;
         case 'update':
-          console.log('Transcription:', e.data);
           addTranscriptionToken(e.data.utteranceId, {
             tokenId: e.data.tokenId,
             value: e.data.output,
           });
           break;
         case 'complete':
-          console.log('Final Transcription:', e.data.output);
           if (targetLanguage) {
             translatorWorkerRef.current?.postMessage({
               type: 'generate',
@@ -126,7 +123,6 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
   const vadOnMessageReceived = useCallback((e: MessageEvent) => {
     switch (e.data.status) {
       case 'ready':
-        console.log('Worker is ready');
         break;
       case 'complete':
         const speechProb = e.data.output.speechProb;
@@ -160,14 +156,12 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
         break;
       case 'update':
         // firt ensure that translation array exists
-        console.log('Translation:', e.data);
         addTranslationToken(e.data.utteranceId, {
           tokenId: e.data.tokenId,
           value: e.data.value,
         });
         break;
       case 'complete':
-        console.log('Translation:', e.data.value);
         break;
     }
   }, []);
@@ -246,18 +240,15 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
 
   useEffect(() => {
     if (!vadWorkerRef.current) {
-      console.log('Creating new Silero VAD worker...');
       vadWorkerRef.current = new Worker(
         new URL('../workers/silero.js', import.meta.url),
         {
           type: 'module',
         }
       );
-      console.log('Worker created successfully');
     }
 
     if (!whisperWorkerRef.current) {
-      console.log('Creating new Whisper worker...');
       whisperWorkerRef.current = new Worker(
         new URL('../workers/whisper.js', import.meta.url),
         {
@@ -265,11 +256,9 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
         }
       );
       whisperWorkerRef.current.postMessage({ type: 'load' });
-      console.log('Worker created successfully');
     }
 
     if (!translatorWorkerRef.current) {
-      console.log('Creating new Translator worker...');
       translatorWorkerRef.current = new Worker(
         new URL('../workers/translator.js', import.meta.url),
         {
@@ -277,7 +266,6 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
         }
       );
       translatorWorkerRef.current.postMessage({ type: 'load' });
-      console.log('Worker created successfully');
     }
 
     if (!utteranceSegmenterRef.current) {

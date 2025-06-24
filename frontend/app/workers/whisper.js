@@ -57,7 +57,6 @@ async function generate(audio) {
 
   const output = await transcriber(audio, { streamer });
   let endTime = performance.now();
-  console.log('whisper generate time', endTime - startTime);
   // Send the output back to the main thread
   self.postMessage({
     status: 'complete',

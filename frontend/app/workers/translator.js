@@ -36,9 +36,6 @@ async function generate(text, targetLanguage, id) {
   try {
     const translator = await TranslationPipeline.getInstance();
 
-    console.log('Target language:', targetLanguage);
-    console.log('Text to translate:', text);
-
     if (!targetLanguage) {
       throw new Error('No target language specified');
     }

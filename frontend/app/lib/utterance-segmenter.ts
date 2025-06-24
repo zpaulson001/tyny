@@ -36,7 +36,6 @@ export default class UtteranceSegmenter {
       SAMPLE_RATE * this.silenceDuration
     ) {
       if (this.containsSpeech) {
-        console.log('New utterance detected');
         this.onNewUtterance(this.audioBuffer);
 
         // Keep only the audio data from the last speech location onwards

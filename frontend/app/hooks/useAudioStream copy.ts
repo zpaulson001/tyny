@@ -21,7 +21,6 @@ export default function useAudioStream(
   serverUrl: string = `${import.meta.env.VITE_SERVER_URL}/ws`,
   deviceId: string = ''
 ) {
-  console.log('useAudioStream');
   const [streamState, setStreamState] = useState<StreamState>(
     STREAM_STATE.IDLE
   );
@@ -69,7 +68,6 @@ export default function useAudioStream(
               return;
             }
             const speechProb = await vadRef.current.process(chunk);
-            console.log('speechProb', speechProb);
             setSpeechProb(speechProb);
           } catch (error) {
             console.error('Error processing audio chunk:', error);
