@@ -15,6 +15,12 @@ export function meta({}: Route.MetaArgs) {
   return [{ title: 'Tyny | Real-time translation' }];
 }
 
+// Check WebGPU support safely at runtime
+let IS_WEBGPU_AVAILABLE = false;
+if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
+  IS_WEBGPU_AVAILABLE = !!navigator.gpu;
+}
+
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { selectedDeviceId, fileBuffer, selectedLanguage } = useToolbar();
@@ -39,7 +45,21 @@ export default function Home() {
         scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 0);
     }
-  }, [transcription]);
+  }, [utterances]);
+
+  if (!IS_WEBGPU_AVAILABLE) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <h1 className="text-2xl font-bold mb-4">WebGPU Not Supported</h1>
+          <p className="text-gray-600 mb-4">
+            This application requires WebGPU support, which is not available in
+            your browser. Please try again using a browser that supports WebGPU.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-full">
@@ -62,7 +82,7 @@ export default function Home() {
             </VisuallyHidden>
             <div className="mx-auto flex items-center gap-2">
               <LoaderCircle className="animate-spin" />
-              Loading models
+              {`Loading models (This may take a few minutes)`}
             </div>
           </AlertDialogContent>
         </AlertDialog>
