@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 import {
   AlertDialog,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogTitle,
 } from '~/components/ui/alert-dialog';
 import { LoaderCircle } from 'lucide-react';
@@ -12,7 +13,7 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useToolbar } from '~/stores/toolbar';
 
 export function meta({}: Route.MetaArgs) {
-  return [{ title: 'Tyny | Real-time translation' }];
+  return [{ title: 'Tyny | Real-time Translation' }];
 }
 
 // Check WebGPU support safely at runtime
@@ -79,6 +80,9 @@ export default function Home() {
           <AlertDialogContent>
             <VisuallyHidden>
               <AlertDialogTitle>Loading models</AlertDialogTitle>
+              <AlertDialogDescription>
+                {`Loading models (This may take a few minutes)`}
+              </AlertDialogDescription>
             </VisuallyHidden>
             <div className="mx-auto flex items-center gap-2">
               <LoaderCircle className="animate-spin" />
