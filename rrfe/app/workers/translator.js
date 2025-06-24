@@ -51,8 +51,8 @@ async function generate(text, targetLanguage, id) {
       callback_function: (x) => {
         self.postMessage({
           status: 'update',
-          output: x,
-          transcriptionId: id,
+          value: x,
+          utteranceId: id,
           tokenId: tokenId,
         });
         tokenId++;

@@ -1,11 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { AudioPipeline } from '~/lib/audio-pipeline';
-import {
-  concatenateFloat32Arrays,
-  saveFloat32ArrayToWav,
-} from '~/lib/audio-utils';
+import { concatenateFloat32Arrays } from '~/lib/audio-utils';
 import UtteranceSegmenter from '~/lib/utterance-segmenter';
 import type { AvailableLanguages } from '~/components/LanguageSelect';
+import { useUtteranceActions, useUtterances } from '~/stores/utterance';
 
 const SAMPLE_RATE = 16000;
 
@@ -43,7 +41,7 @@ interface TranslationUpdateMessage {
 }
 
 interface Transcription {
-  transcriptionId: number;
+  utteranceId: number;
   transcription: TranscriptionUpdateMessage[];
   time: number;
   translation?: TranslationUpdateMessage[];
@@ -58,7 +56,9 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
   const [streamState, setStreamState] = useState<StreamState>(
     STREAM_STATE.IDLE
   );
-  const [transcription, setTranscription] = useState<Transcription[]>([]);
+  const utterances = useUtterances();
+  const { addTranscriptionToken, addTranslationToken, clearUtterances } =
+    useUtteranceActions();
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const vadWorkerRef = useRef<Worker | null>(null);
@@ -99,40 +99,10 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
           break;
         case 'update':
           console.log('Transcription:', e.data);
-          if (shouldStartNewTranscription.current) {
-            const newTranscription: Transcription = {
-              transcriptionId: e.data.transcriptionId,
-              transcription: [
-                {
-                  tokenId: e.data.tokenId,
-                  output: e.data.output,
-                },
-              ],
-              time: e.data.time,
-            };
-            shouldStartNewTranscription.current = false;
-            setTranscription((prev) => {
-              return [...prev, newTranscription];
-            });
-          } else {
-            setTranscription((prev) => {
-              const transcriptionArr =
-                prev[e.data.transcriptionId].transcription;
-              if (
-                e.data.tokenId <
-                prev[e.data.transcriptionId].transcription.length
-              ) {
-                return prev;
-              } else {
-                const newTranscriptionArr = [...prev];
-                newTranscriptionArr[e.data.transcriptionId].transcription.push({
-                  tokenId: e.data.tokenId,
-                  output: e.data.output,
-                });
-                return newTranscriptionArr;
-              }
-            });
-          }
+          addTranscriptionToken(e.data.utteranceId, {
+            tokenId: e.data.tokenId,
+            value: e.data.output,
+          });
           break;
         case 'complete':
           console.log('Final Transcription:', e.data.output);
@@ -143,13 +113,13 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
                 text: e.data.output,
                 targetLanguage,
               },
-              id: e.data.transcriptionId,
+              id: e.data.utteranceId,
             });
           }
           break;
       }
     },
-    [targetLanguage, transcription]
+    [targetLanguage]
   );
 
   // Create a callback function for messages from the worker thread.
@@ -183,53 +153,24 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
     }
   }, []);
 
-  const translatorOnMessageReceived = useCallback(
-    (e: MessageEvent) => {
-      switch (e.data.status) {
-        case 'ready':
-          setTranslatorReady(true);
-          break;
-        case 'update':
-          // firt ensure that translation array exists
-          console.log('Translation:', e.data);
-          setTranscription((prev) => {
-            if (!('translation' in prev[e.data.transcriptionId])) {
-              prev[e.data.transcriptionId].translation = [];
-            }
-            if (prev[e.data.transcriptionId].translation?.length === 0) {
-              const newTranscriptionArr = [...prev];
-              newTranscriptionArr[e.data.transcriptionId].translation?.push({
-                tokenId: e.data.tokenId,
-                output: e.data.output,
-              });
-              return newTranscriptionArr;
-            } else {
-              const prevTranslation = prev[e.data.transcriptionId].translation;
-              if (prevTranslation !== undefined) {
-                if (e.data.tokenId < prevTranslation.length) {
-                  return prev;
-                } else {
-                  const newTranscriptionArr = [...prev];
-                  newTranscriptionArr[e.data.transcriptionId].translation?.push(
-                    {
-                      tokenId: e.data.tokenId,
-                      output: e.data.output,
-                    }
-                  );
-                  return newTranscriptionArr;
-                }
-              }
-              return prev;
-            }
-          });
-          break;
-        case 'complete':
-          console.log('Translation:', e.data.output);
-          break;
-      }
-    },
-    [transcription]
-  );
+  const translatorOnMessageReceived = useCallback((e: MessageEvent) => {
+    switch (e.data.status) {
+      case 'ready':
+        setTranslatorReady(true);
+        break;
+      case 'update':
+        // firt ensure that translation array exists
+        console.log('Translation:', e.data);
+        addTranslationToken(e.data.utteranceId, {
+          tokenId: e.data.tokenId,
+          value: e.data.value,
+        });
+        break;
+      case 'complete':
+        console.log('Translation:', e.data.value);
+        break;
+    }
+  }, []);
 
   const toggleStreaming = async () => {
     if (streamState === STREAM_STATE.STREAMING) {
@@ -373,7 +314,7 @@ export default function useLocalTranscription(options: TranscriptionOptions) {
     streamState,
     toggleStreaming,
     isSpeaking,
-    transcription,
     isLoadingModels,
+    utterances,
   };
 }

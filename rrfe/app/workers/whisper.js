@@ -22,7 +22,7 @@ class AutomaticSpeechRecognitionPipeline {
 }
 
 let processing = false;
-let transcriptionId = 0;
+let utteranceId = 0;
 
 async function generate(audio) {
   let startTime = performance.now();
@@ -48,7 +48,7 @@ async function generate(audio) {
       self.postMessage({
         status: 'update',
         output: x,
-        transcriptionId: transcriptionId,
+        utteranceId: utteranceId,
         tokenId: tokenId,
       });
       tokenId++;
@@ -63,9 +63,9 @@ async function generate(audio) {
     status: 'complete',
     output: output.text,
     time: endTime - startTime,
-    transcriptionId: transcriptionId,
+    utteranceId: utteranceId,
   });
-  transcriptionId++;
+  utteranceId++;
   processing = false;
 }
 

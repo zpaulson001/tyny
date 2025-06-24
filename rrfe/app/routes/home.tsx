@@ -23,7 +23,7 @@ export default function Home() {
     streamState,
     toggleStreaming,
     isSpeaking,
-    transcription,
+    utterances,
     isLoadingModels,
   } = useLocalTranscription({
     input: {
@@ -42,14 +42,14 @@ export default function Home() {
   }, [transcription]);
 
   return (
-    <div className="h-screen w-full border border-green-500">
-      <div className="h-full w-full max-w-5xl mx-auto grid grid-rows-[1fr_auto] gap-2 border border-red-500 p-4">
-        <div className="border border-blue-500 overflow-y-auto">
-          <div className="flex flex-col gap-2 border border-yellow-500">
-            {transcription.map((t) => (
-              <div key={t.transcriptionId} className="grid grid-cols-2 gap-2">
-                <p>{t.transcription.map((t) => t.output).join('')}</p>
-                <p>{t.translation?.map((t) => t.output).join('')}</p>
+    <div className="h-screen w-full">
+      <div className="h-full w-full max-w-5xl mx-auto grid grid-rows-[1fr_auto] gap-2 p-4">
+        <div className="overflow-y-auto">
+          <div className="flex flex-col gap-2">
+            {Array.from(utterances.values()).map((u) => (
+              <div key={u.utteranceId} className="grid grid-cols-2 gap-2">
+                <p>{u.transcription.map((t) => t.value).join('')}</p>
+                <p>{u.translation?.map((t) => t.value).join('')}</p>
               </div>
             ))}
             <div ref={scrollRef}></div>
