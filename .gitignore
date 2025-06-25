@@ -20,14 +20,3 @@ wheels/
 *.m4a
 *.aac
 *.flac
-
-# Model files
-models/
-
-.DS_Store
-/node_modules/
-
-# React Router
-/.react-router/
-/build/
-.env
