@@ -60,7 +60,7 @@ async def listen_to_room(
         raise HTTPException(status_code=404, detail="Room not found.")
 
     # Create a new async queue for this client
-    q: asyncio.Queue[str] = asyncio.Queue()
+    q: asyncio.Queue[TranscriptionMessage] = asyncio.Queue()
     sse_manager.subscribe_to_room(room_id, q, language_code)
 
     async def event_generator():
