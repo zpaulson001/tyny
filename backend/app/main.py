@@ -1,7 +1,23 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
+import onnx_asr
+from transformers import pipeline
 from app.routers import rooms
+from app.globals import ml_models
 
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load the ML model
+    ml_models.transcription = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v2")
+    ml_models.translation = pipeline(
+        "translation", model="facebook/nllb-200-distilled-600M"
+    )
+    yield
+    # Clean up the ML models and release the resources
+    ml_models.clear()
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(rooms.router)
