@@ -35,10 +35,12 @@ async def send_audio(
         )
 
     audio_data = await request.body()
-    print(audio_data)
 
-    for queue in sse_manager.rooms[room_id]["transcriptions"]:
-        queue.put_nowait(str(audio_data))
+    background_tasks.add_task(
+        rooms_service.process_audio,
+        audio_data,
+        room_id,
+    )
 
     return None
 
