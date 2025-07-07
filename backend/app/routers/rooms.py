@@ -22,11 +22,11 @@ async def create_room(sse_manager: Annotated[SSEManager, Depends(get_sse_manager
 @router.post("/{room_id}")
 async def send_audio(
     room_id: str,
-    request: Request,
+    raw_data: Annotated[bytes, Body(media_type="application/octet-stream")],
     rooms_service: Annotated[RoomsService, Depends(get_rooms_service)],
     sse_manager: Annotated[SSEManager, Depends(get_sse_manager)],
     background_tasks: BackgroundTasks,
-    is_final: bool = False,
+    is_utterance: bool = False,
 ):
     if room_id not in sse_manager.rooms:
         raise HTTPException(
@@ -34,12 +34,11 @@ async def send_audio(
             detail="Room not found. Please create a room before sending audio.",
         )
 
-    audio_data = await request.body()
-
     background_tasks.add_task(
         rooms_service.process_audio,
-        audio_data,
+        raw_data,
         room_id,
+        is_utterance,
     )
 
     return None
