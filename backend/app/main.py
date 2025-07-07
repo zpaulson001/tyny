@@ -9,10 +9,10 @@ from app.globals import ml_models
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Load the ML model
-    ml_models.transcription = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v2")
-    ml_models.translation = pipeline(
-        "translation", model="facebook/nllb-200-distilled-600M"
-    )
+    # ml_models.transcription = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v2")
+    # ml_models.translation = pipeline(
+    #     "translation", model="facebook/nllb-200-distilled-600M"
+    # )
     yield
     # Clean up the ML models and release the resources
     ml_models.clear()
