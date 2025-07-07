@@ -1,9 +1,14 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from typing import Annotated
+from fastapi import Depends, FastAPI
 import onnx_asr
 from transformers import pipeline
-from app.routers import rooms
-from app.globals import ml_models
+from app.lib.dependencies import get_transcription_service
+from app.routers import rooms, languages
+from app.globals import httpx_client, ml_models
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.services.transcription import TranscriptionService
 
 
 @asynccontextmanager
