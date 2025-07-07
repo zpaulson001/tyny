@@ -61,19 +61,19 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     }
   }, [utterances]);
 
-  if (!IS_WEBGPU_AVAILABLE) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-6">
-          <h1 className="text-2xl font-bold mb-4">WebGPU Not Supported</h1>
-          <p className="text-gray-600 mb-4">
-            This application requires WebGPU support, which is not available in
-            your browser. Please try again using a browser that supports WebGPU.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // if (!IS_WEBGPU_AVAILABLE) {
+  //   return (
+  //     <div className="h-screen w-full flex items-center justify-center">
+  //       <div className="text-center max-w-md mx-auto p-6">
+  //         <h1 className="text-2xl font-bold mb-4">WebGPU Not Supported</h1>
+  //         <p className="text-gray-600 mb-4">
+  //           This application requires WebGPU support, which is not available in
+  //           your browser. Please try again using a browser that supports WebGPU.
+  //         </p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="h-screen w-full">
