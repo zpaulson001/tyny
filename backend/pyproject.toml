@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.115.7",
-    "faster-whisper>=1.1.1",
     "jinja2>=3.1.5",
     "langchain[groq]>=0.3.19",
     "langchain-groq>=0.2.4",
