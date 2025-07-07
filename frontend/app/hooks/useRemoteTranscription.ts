@@ -20,6 +20,11 @@ type StreamState = (typeof STREAM_STATE)[keyof typeof STREAM_STATE];
  */
 interface TranscriptionOptions {
   /** Threshold for speech probability (0-1) */
+  input: {
+    deviceId?: string;
+    file?: ArrayBuffer;
+  };
+  targetLanguages?: string[];
   speechProbThreshold?: number;
   silenceDuration?: number;
 }
