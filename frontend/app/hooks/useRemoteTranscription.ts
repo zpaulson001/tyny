@@ -10,6 +10,7 @@ const STREAM_STATE = {
   CONNECTING: 'connecting',
   STREAMING: 'streaming',
   ERROR: 'error',
+  WARMING_UP: 'warmingUp',
 } as const;
 
 type StreamState = (typeof STREAM_STATE)[keyof typeof STREAM_STATE];
