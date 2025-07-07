@@ -26,7 +26,7 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
 export default function Home({ loaderData }: Route.ComponentProps) {
   const { availableLanguages } = loaderData;
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { selectedDeviceId, fileBuffer, selectedLanguage } = useToolbar();
+  const { selectedDeviceId, fileBuffer, selectedLanguages } = useToolbar();
 
   const { streamState, toggleStreaming, isSpeaking, utterances } =
     useRemoteTranscription({
@@ -104,9 +104,30 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
           <div className="flex flex-col gap-2">
             {Array.from(utterances.values()).map((u) => (
-              <div key={u.utteranceId} className="grid grid-cols-2 gap-2">
-                <p>{u.transcription.map((t) => t.value).join('')}</p>
-                <p>{u.translation?.map((t) => t.value).join('')}</p>
+              <div key={u.utteranceId} className="flex gap-4">
+                <p
+                  className={`flex-1 ${
+                    !u.transcription.committed ? 'text-gray-500' : ''
+                  }`}
+                >
+                  {u.transcription.committed
+                    ? u.transcription.committed
+                    : u.transcription.volatile}
+                </p>
+                {Object.entries(u.translations).map(
+                  ([languageCode, translation]) => (
+                    <p
+                      key={languageCode}
+                      className={`flex-1 ${
+                        !translation.committed ? 'text-gray-500' : ''
+                      }`}
+                    >
+                      {translation.committed
+                        ? translation.committed
+                        : translation.volatile}
+                    </p>
+                  )
+                )}
               </div>
             ))}
             <div ref={scrollRef}></div>
@@ -116,6 +137,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           isSpeaking={isSpeaking}
           streamState={streamState}
           toggleStreaming={toggleStreaming}
+          languageOptions={availableLanguages}
         />
       </div>
     </div>
