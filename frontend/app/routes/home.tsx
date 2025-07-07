@@ -2,19 +2,12 @@ import { Toolbar } from '~/components/ToolBar';
 import type { Route } from './+types/home';
 import useLocalTranscription from '~/hooks/useLocalTranscription';
 import { useEffect, useRef } from 'react';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogTitle,
-} from '~/components/ui/alert-dialog';
+
 import { LoaderCircle } from 'lucide-react';
-import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useToolbar } from '~/stores/toolbar';
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'Tyny | Real-time Translation' }];
-}
 
 // Check WebGPU support safely at runtime
 let IS_WEBGPU_AVAILABLE = false;
@@ -76,20 +69,6 @@ export default function Home() {
             <div ref={scrollRef}></div>
           </div>
         </div>
-        <AlertDialog open={isLoadingModels}>
-          <AlertDialogContent>
-            <VisuallyHidden>
-              <AlertDialogTitle>Loading models</AlertDialogTitle>
-              <AlertDialogDescription>
-                {`Loading models (This may take a few minutes)`}
-              </AlertDialogDescription>
-            </VisuallyHidden>
-            <div className="mx-auto flex items-center gap-2">
-              <LoaderCircle className="animate-spin" />
-              {`Loading models (This may take a few minutes)`}
-            </div>
-          </AlertDialogContent>
-        </AlertDialog>
         <Toolbar
           isSpeaking={isSpeaking}
           streamState={streamState}
