@@ -10,16 +10,16 @@ from app.lib.dependencies import get_rooms_service, get_sse_manager
 from app.lib.language_codes import LanguageCode
 from app.services.rooms import RoomsService, TranscriptionMessage
 
-router = APIRouter()
+router = APIRouter(prefix="/rooms")
 
 
-@router.post("/rooms")
+@router.post("/")
 async def create_room(sse_manager: Annotated[SSEManager, Depends(get_sse_manager)]):
     room_id = sse_manager.create_room()
     return {"room_id": room_id}
 
 
-@router.post("/rooms/{room_id}")
+@router.post("/{room_id}")
 async def send_audio(
     room_id: str,
     request: Request,
@@ -45,12 +45,12 @@ async def send_audio(
     return None
 
 
-@router.get("/rooms")
+@router.get("/")
 async def get_rooms(sse_manager: Annotated[SSEManager, Depends(get_sse_manager)]):
     return {"rooms": list(sse_manager.rooms.keys())}
 
 
-@router.post("/rooms/{room_id}/listen")
+@router.get("/{room_id}/events")
 async def listen_to_room(
     room_id: str,
     language_code: LanguageCode,
