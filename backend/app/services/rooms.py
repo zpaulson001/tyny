@@ -34,7 +34,7 @@ class TranscriptionMessage(TypedDict):
 
 
 class TranslationMessage(TranscriptionMessage):
-    language_code: LanguageCode
+    language_code: str
 
 
 @dataclass
@@ -43,9 +43,10 @@ class Room:
     transcriptions: list[asyncio.Queue[TranscriptionMessage]] = field(
         default_factory=list
     )
-    translations: dict[LanguageCode, list[asyncio.Queue[TranslationMessage]]] = field(
-        default_factory=dict
-    )
+    translations: dict[
+        str,
+        list[asyncio.Queue[TranslationMessage | TranscriptionMessage]],
+    ] = field(default_factory=dict)
 
 
 class SSEManager:
@@ -65,8 +66,8 @@ class SSEManager:
     def subscribe_to_room(
         self,
         room_id: str,
-        queue: asyncio.Queue[TranscriptionMessage],
-        language_code: LanguageCode | list[LanguageCode],
+        queue: asyncio.Queue[TranscriptionMessage | TranslationMessage],
+        language_code: str | list[str] | None = None,
         no_transcriptions: bool = False,
     ):
         if room_id not in self.rooms:
