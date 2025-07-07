@@ -1,4 +1,3 @@
-import type { AvailableLanguages } from '~/components/LanguageSelect';
 import { create } from 'zustand';
 
 type AudioMode = 'file' | 'mic';
@@ -6,26 +5,26 @@ type AudioMode = 'file' | 'mic';
 interface ToolbarActions {
   setMode: (mode: AudioMode) => void;
   setSelectedDeviceId: (deviceId: string) => void;
-  setSelectedLanguage: (language: AvailableLanguages) => void;
+  setSelectedLanguages: (languages: string[]) => void;
   setFileBuffer: (fileBuffer: ArrayBuffer) => void;
 }
 
 interface ToolbarStore {
   mode: AudioMode;
   selectedDeviceId: string;
-  selectedLanguage: AvailableLanguages;
+  selectedLanguages: string[];
   fileBuffer: ArrayBuffer | undefined;
   actions: ToolbarActions;
 }
 const useToolbarStore = create<ToolbarStore>((set) => ({
   mode: 'mic',
   selectedDeviceId: '',
-  selectedLanguage: 'spa_Latn',
+  selectedLanguages: ['es'],
   fileBuffer: undefined,
   actions: {
     setMode: (mode) => set({ mode }),
     setSelectedDeviceId: (deviceId) => set({ selectedDeviceId: deviceId }),
-    setSelectedLanguage: (language) => set({ selectedLanguage: language }),
+    setSelectedLanguages: (languages) => set({ selectedLanguages: languages }),
     setFileBuffer: (fileBuffer) => set({ fileBuffer }),
   },
 }));
