@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { AudioPipeline } from '~/lib/audio-pipeline';
 import { concatenateFloat32Arrays } from '~/lib/audio-utils';
 import UtteranceSegmenter from '~/lib/utterance-segmenter';
+import { useUtteranceActions, useUtterances } from '~/stores/utterance';
+import { ApiClient } from '~/lib/api-client';
 
 const SAMPLE_RATE = 16000;
 
@@ -31,20 +33,61 @@ interface TranscriptionOptions {
 
 export default function useRemoteTranscription(options: TranscriptionOptions) {
   const fullAudioBufferRef = useRef<Float32Array>(new Float32Array(0));
-  const onChunkBufferRef = useRef<Float32Array>(new Float32Array(0));
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [streamState, setStreamState] = useState<StreamState>(
     STREAM_STATE.IDLE
   );
-  const [transcription, setTranscription] = useState<Transcription[]>([]);
+  const utterances = useUtterances();
+  const { putTranscription, putTranslation, clearUtterances } =
+    useUtteranceActions();
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const vadWorkerRef = useRef<Worker | null>(null);
   const audioPipelineRef = useRef<AudioPipeline | null>(null);
   const utteranceSegmenterRef = useRef<UtteranceSegmenter | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const sentChunksRef = useRef<Set<number>>(new Set());
-  const lastSequenceNumberRef = useRef<number>(0);
+  const {
+    input,
+    targetLanguages,
+    speechProbThreshold = 0.5,
+    silenceDuration = 0.7,
+  } = options;
+
+  const apiClientRef = useRef<ApiClient | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  const removeEventListeners = () => {
+    vadWorkerRef.current?.removeEventListener('message', vadOnMessageReceived);
+  };
+
+  // Create a callback function for messages from the worker thread.
+  const vadOnMessageReceived = useCallback((e: MessageEvent) => {
+    switch (e.data.status) {
+      case 'ready':
+        break;
+      case 'complete':
+        const speechProb = e.data.output.speechProb;
+
+        // Handle speech state changes
+        if (speechProb >= speechProbThreshold) {
+          setIsSpeaking(true);
+        } else {
+          setIsSpeaking(false);
+        }
+
+        // Concatenate the new chunk with the existing buffer
+        const newBuffer = concatenateFloat32Arrays(
+          fullAudioBufferRef.current,
+          e.data.output.audioChunk
+        );
+
+        fullAudioBufferRef.current = newBuffer;
+        utteranceSegmenterRef.current?.process(
+          e.data.output.audioChunk,
+          e.data.output.speechProb
+        );
+        break;
+    }
+  }, []);
 
   const toggleStreaming = async () => {
     if (streamState === STREAM_STATE.STREAMING) {
@@ -58,27 +101,31 @@ export default function useRemoteTranscription(options: TranscriptionOptions) {
     try {
       setStreamState(STREAM_STATE.CONNECTING);
 
-      // Connect to WebSocket
-      wsRef.current = new WebSocket('ws://localhost:3000/ws');
+      await apiClientRef.current?.createRoom();
+      console.log('apiClientRef.current', apiClientRef.current);
 
-      wsRef.current.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'transcription') {
-          setTranscription((prev) => [
-            ...prev,
-            {
-              id: Date.now(),
-              text: data.text,
-              inferenceTime: data.inference_time,
-            },
-          ]);
-        }
-      };
+      const languageQueryString = targetLanguages
+        ?.map((language) => `language_code=${language}`)
+        .join('&');
 
-      wsRef.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setStreamState(STREAM_STATE.ERROR);
-      };
+      eventSourceRef.current = new EventSource(
+        `${import.meta.env.VITE_SERVER_URL}/rooms/${apiClientRef.current?.roomId}/events?${languageQueryString}`
+      );
+
+      eventSourceRef.current?.addEventListener('transcription', (event) => {
+        const transcription = JSON.parse(event.data);
+        putTranscription(transcription.utterance_id, {
+          committed: transcription.committed,
+          volatile: transcription.volatile,
+        });
+      });
+      eventSourceRef.current?.addEventListener('translation', (event) => {
+        const translation = JSON.parse(event.data);
+        putTranslation(translation.utterance_id, translation.language_code, {
+          committed: translation.committed,
+          volatile: translation.volatile,
+        });
+      });
 
       // Only include deviceId in constraints if it's not empty
       const constraints: MediaStreamConstraints = {
@@ -86,31 +133,26 @@ export default function useRemoteTranscription(options: TranscriptionOptions) {
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
-          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+          ...(input.deviceId ? { deviceId: { exact: input.deviceId } } : {}),
         },
       };
 
-      // create media stream
-      mediaStreamRef.current =
-        await navigator.mediaDevices.getUserMedia(constraints);
-
+      if (input.deviceId) {
+        mediaStreamRef.current =
+          await navigator.mediaDevices.getUserMedia(constraints);
+      }
       audioPipelineRef.current = new AudioPipeline(
-        mediaStreamRef.current,
+        input.file || mediaStreamRef.current,
         async (chunk) => {
-          onChunkBufferRef.current = concatenateFloat32Arrays(
-            onChunkBufferRef.current,
-            chunk
-          );
-          const currentSequenceNumber = lastSequenceNumberRef.current;
-          sentChunksRef.current.add(currentSequenceNumber);
           vadWorkerRef.current?.postMessage({
             type: 'inference',
             data: chunk,
-            sequenceNumber: currentSequenceNumber,
           });
-          lastSequenceNumberRef.current++;
         }
       );
+
+      setStreamState(STREAM_STATE.WARMING_UP);
+      await apiClientRef.current?.warmUp();
 
       await audioPipelineRef.current.start();
       setStreamState(STREAM_STATE.STREAMING);
@@ -122,12 +164,8 @@ export default function useRemoteTranscription(options: TranscriptionOptions) {
         mediaStreamRef.current.getTracks().forEach((track) => track.stop());
         mediaStreamRef.current = null;
       }
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
     }
-  }, [deviceId]);
+  }, [input.deviceId, input.file, targetLanguages]);
 
   const stopStreaming = async () => {
     if (audioPipelineRef.current) {
@@ -141,91 +179,51 @@ export default function useRemoteTranscription(options: TranscriptionOptions) {
     eventSourceRef.current?.close();
 
     fullAudioBufferRef.current = new Float32Array(0);
+
     setStreamState(STREAM_STATE.IDLE);
-    console.log('sentChunksRef', sentChunksRef.current);
   };
 
   useEffect(() => {
     if (!vadWorkerRef.current) {
-      console.log('Creating new Silero VAD worker...');
       vadWorkerRef.current = new Worker(
         new URL('../workers/silero.js', import.meta.url),
         {
           type: 'module',
         }
       );
-      console.log('Worker created successfully');
+    }
+
+    if (!apiClientRef.current) {
+      apiClientRef.current = new ApiClient();
     }
 
     if (!utteranceSegmenterRef.current) {
       utteranceSegmenterRef.current = new UtteranceSegmenter(
-        mergedOptions.speechProbThreshold,
-        mergedOptions.silenceDuration,
+        speechProbThreshold,
+        silenceDuration,
+        1,
         (utterance) => {
-          console.log('New utterance detected:', utterance);
-          // Send the raw PCM audio data to the WebSocket server
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            // Convert Float32Array to ArrayBuffer for sending
-            const buffer = utterance.buffer;
-            wsRef.current.send(buffer);
-          }
+          apiClientRef.current?.postAudio(utterance, true);
+        },
+        (utterance) => {
+          apiClientRef.current?.postAudio(utterance);
         }
       );
     }
 
-    // Create a callback function for messages from the worker thread.
-    const vadOnMessageReceived = (e: MessageEvent) => {
-      console.log('Received message from worker:', e.data);
-      switch (e.data.status) {
-        case 'ready':
-          console.log('Worker is ready');
-          break;
-        case 'complete':
-          console.log('Speech probability:', e.data.output);
-          const speechProb = e.data.output.speechProb;
-          const sequenceNumber = e.data.output.sequenceNumber;
-          sentChunksRef.current.delete(sequenceNumber);
-
-          // Handle speech state changes
-          if (speechProb >= mergedOptions.speechProbThreshold) {
-            setIsSpeaking(true);
-          } else {
-            setIsSpeaking(false);
-          }
-
-          // Concatenate the new chunk with the existing buffer
-          const newBuffer = concatenateFloat32Arrays(
-            fullAudioBufferRef.current,
-            e.data.output.audioChunk
-          );
-          fullAudioBufferRef.current = newBuffer;
-          utteranceSegmenterRef.current?.process(
-            e.data.output.audioChunk,
-            e.data.output.speechProb
-          );
-          break;
-      }
-    };
+    removeEventListeners();
 
     // Attach the callback function as an event listener.
     vadWorkerRef.current.addEventListener('message', vadOnMessageReceived);
 
     // Define a cleanup function for when the component is unmounted.
-    return () => {
-      vadWorkerRef.current?.removeEventListener(
-        'message',
-        vadOnMessageReceived
-      );
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
+    return removeEventListeners;
   }, []);
 
   return {
     streamState,
     toggleStreaming,
     isSpeaking,
-    transcription,
+    utterances,
   };
 }
