@@ -41,8 +41,8 @@ class TranslationMessage(TranscriptionMessage):
 @dataclass
 class Room:
     utterance_id: int = 0
-    transcriptions: list[asyncio.Queue[TranscriptionMessage]] = field(
-        default_factory=list
+    transcriptions: list[asyncio.Queue[TranscriptionMessage | TranslationMessage]] = (
+        field(default_factory=list)
     )
     translations: dict[
         str,
