@@ -1,6 +1,5 @@
 import { Toolbar } from '~/components/ToolBar';
 import type { Route } from './+types/home';
-import useLocalTranscription from '~/hooks/useLocalTranscription';
 import { useEffect, useRef } from 'react';
 
 import { LoaderCircle } from 'lucide-react';
@@ -10,6 +9,7 @@ import { ApiClient } from '~/lib/api-client';
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'Tyny | Real-time Translation' }];
+}
 
 // Check WebGPU support safely at runtime
 // let IS_WEBGPU_AVAILABLE = false;
