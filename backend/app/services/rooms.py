@@ -29,8 +29,9 @@ def bytes_to_float32_array(audio_bytes: bytes) -> NDArray[np.float32]:
 
 
 class TranscriptionMessage(TypedDict):
-    committed: str
-    volatile: str
+    utterance_id: int
+    committed: str | None
+    volatile: str | None
 
 
 class TranslationMessage(TranscriptionMessage):
