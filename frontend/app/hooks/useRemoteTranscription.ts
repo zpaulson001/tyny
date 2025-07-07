@@ -1,9 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { AudioPipeline } from '~/lib/audio-pipeline';
-import {
-  concatenateFloat32Arrays,
-  saveFloat32ArrayToWav,
-} from '~/lib/audio-utils';
+import { concatenateFloat32Arrays } from '~/lib/audio-utils';
 import UtteranceSegmenter from '~/lib/utterance-segmenter';
 
 const SAMPLE_RATE = 16000;
@@ -150,28 +147,8 @@ export default function useTranscription(
       mediaStreamRef.current = null;
     }
     vadWorkerRef.current?.postMessage({ type: 'reset' });
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
+    eventSourceRef.current?.close();
 
-    if (fullAudioBufferRef.current) {
-      saveFloat32ArrayToWav(
-        fullAudioBufferRef.current,
-        SAMPLE_RATE,
-        `full_audio_buffer_ref`
-      );
-    }
-
-    if (onChunkBufferRef.current) {
-      saveFloat32ArrayToWav(
-        onChunkBufferRef.current,
-        SAMPLE_RATE,
-        `on_chunk_buffer_ref`
-      );
-    }
-
-    audioPipelineRef.current = null;
     fullAudioBufferRef.current = new Float32Array(0);
     setStreamState(STREAM_STATE.IDLE);
     console.log('sentChunksRef', sentChunksRef.current);
