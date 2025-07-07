@@ -125,11 +125,19 @@ class DeepLTranslationService(BaseRemoteTranslationService):
             headers=self.headers,
         )
 
-        languages = [
-            {
-                "code": language.get("language", "").lower(),
-                "name": language.get("name", ""),
-            }
-            for language in res.json()
-        ]
+        # Use a dictionary to track seen names and keep the first occurrence
+        seen_names = {}
+        languages = []
+
+        for language in res.json():
+            name = language.get("name", "")
+            if name and name not in seen_names:
+                seen_names[name] = True
+                languages.append(
+                    {
+                        "code": language.get("language", "").lower(),
+                        "name": name,
+                    }
+                )
+
         return languages
