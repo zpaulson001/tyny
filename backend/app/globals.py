@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import httpx
 from onnx_asr.adapters import TextResultsAsrAdapter
 from app.services.rooms import SSEManager
 from transformers import Pipeline
@@ -18,3 +19,4 @@ class MLModels:
 
 ml_models: MLModels = MLModels()
 sse_manager: SSEManager = SSEManager()
+httpx_client: httpx.AsyncClient = httpx.AsyncClient()
