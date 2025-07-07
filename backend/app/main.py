@@ -16,10 +16,23 @@ async def lifespan(app: FastAPI):
     yield
     # Clean up the ML models and release the resources
     ml_models.clear()
+    await httpx_client.aclose()
 
+
+origins = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "http://localhost:5173",
+]
 
 app = FastAPI(lifespan=lifespan)
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(rooms.router)
 app.include_router(languages.router)
 
