@@ -78,18 +78,18 @@ class SSEManager:
         if not no_transcriptions:
             room.transcriptions.append(queue)
 
-        lang_code_arr: list[LanguageCode] = []
+        if language_code is not None:
+            lang_code_arr = (
+                language_code if isinstance(language_code, list) else [language_code]
+            )
 
-        if not isinstance(language_code, list):
-            lang_code_arr.append(language_code)
+            for lang_code in lang_code_arr:
+                if lang_code not in room.translations:
+                    room.translations[lang_code] = [queue]
+                else:
+                    room.translations[lang_code].append(queue)
 
-        for lang_code in lang_code_arr:
-            if lang_code not in room.translations:
-                room.translations[lang_code] = [queue]
-            else:
-                room.translations[lang_code].append(queue)
-
-    def get_subscribed_language_codes(self, room_id: str) -> list[LanguageCode]:
+    def get_subscribed_language_codes(self, room_id: str) -> list[str]:
         room = self.rooms[room_id]
         return list(room.translations.keys())
 
