@@ -9,6 +9,12 @@ from numpy.typing import NDArray
 from app.config import settings
 
 
+class BaseRemoteTranscriptionService(ABC):
+    @abstractmethod
+    async def transcribe(self, audio_data: bytes) -> str:
+        pass
+
+
 class TranscriptionResult(TypedDict):
     text: str
     processing_time: float
@@ -72,7 +78,7 @@ class ParakeetService:
         self.model = onnx_asr.load_model(self.model_name)
 
 
-class TranscriptionService:
+class TranscriptionService(BaseRemoteTranscriptionService):
     def __init__(self, http_client: httpx.AsyncClient):
         self.http_client = http_client
         self.url = settings.modal_url
