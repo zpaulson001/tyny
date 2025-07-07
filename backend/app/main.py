@@ -21,3 +21,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(rooms.router)
+app.include_router(languages.router)
+
+
+@app.get("/warm-up")
+async def warm_up(
+    transcription_service: Annotated[
+        TranscriptionService, Depends(get_transcription_service)
+    ],
+):
+    await transcription_service.warm_up()
+    return {"message": "Warm up complete"}
