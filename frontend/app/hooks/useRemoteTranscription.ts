@@ -23,22 +23,7 @@ interface TranscriptionOptions {
   silenceDuration?: number;
 }
 
-const DEFAULT_OPTIONS: Required<TranscriptionOptions> = {
-  speechProbThreshold: 0.5,
-  silenceDuration: 0.7,
-};
-
-interface Transcription {
-  id: number;
-  text: string;
-  inferenceTime: number;
-}
-
-export default function useTranscription(
-  deviceId: string,
-  options: Partial<TranscriptionOptions> = {}
-) {
-  const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
+export default function useRemoteTranscription(options: TranscriptionOptions) {
   const fullAudioBufferRef = useRef<Float32Array>(new Float32Array(0));
   const onChunkBufferRef = useRef<Float32Array>(new Float32Array(0));
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
