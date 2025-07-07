@@ -103,6 +103,16 @@ class SSEManager:
                 for queue in translation_queues[translation_message["language_code"]]:
                     queue.put_nowait(translation_message)
 
+    def push_transcription_message(
+        self, room_id: str, transcription_message: TranscriptionMessage
+    ):
+        room = self.rooms[room_id]
+        for queue in room.transcriptions:
+            queue.put_nowait(transcription_message)
+
+        if transcription_message["committed"]:
+            room.utterance_id += 1
+
 
 class RoomsService:
     def __init__(
