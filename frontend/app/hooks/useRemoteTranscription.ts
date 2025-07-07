@@ -105,7 +105,7 @@ export default function useRemoteTranscription(options: TranscriptionOptions) {
       console.log('apiClientRef.current', apiClientRef.current);
 
       const languageQueryString = targetLanguages
-        ?.map((language) => `language_code=${language}`)
+        ?.map((language) => `target_lang=${language}`)
         .join('&');
 
       eventSourceRef.current = new EventSource(
