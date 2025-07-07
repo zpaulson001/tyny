@@ -1,6 +1,7 @@
 import { concatenateFloat32Arrays } from './audio-utils';
 
 const SAMPLE_RATE = 16000;
+const CHUNK_SIZE = 512;
 
 export default class UtteranceSegmenter {
   private audioBuffer: Float32Array = new Float32Array(0);
@@ -8,16 +9,22 @@ export default class UtteranceSegmenter {
   private containsSpeech: boolean = false;
   private speechProbThreshold: number;
   private silenceDuration: number;
+  private updateInterval: number | null;
   private onNewUtterance: (utterance: Float32Array) => void;
+  private onUpdate: (utterance: Float32Array) => void;
 
   constructor(
     speechProbThreshold: number = 0.8,
     silenceDuration: number = 0.7,
-    onNewUtterance: (utterance: Float32Array) => void
+    updateInterval: number | null = null,
+    onNewUtterance: (utterance: Float32Array) => void = () => {},
+    onUpdate: (utterance: Float32Array) => void = () => {}
   ) {
     this.speechProbThreshold = speechProbThreshold;
     this.silenceDuration = silenceDuration;
+    this.updateInterval = updateInterval;
     this.onNewUtterance = onNewUtterance;
+    this.onUpdate = onUpdate;
   }
 
   process(audioChunk: Float32Array, speechProb: number) {
@@ -45,6 +52,19 @@ export default class UtteranceSegmenter {
       }
       this.containsSpeech = false;
       this.lastSpeechLoc = 0;
+      return;
+    }
+
+    if (this.updateInterval) {
+      if (
+        this.audioBuffer.length % (this.updateInterval * SAMPLE_RATE) <
+          CHUNK_SIZE &&
+        this.containsSpeech
+      ) {
+        console.log('buffer length', this.audioBuffer.length);
+        console.log('update interval', this.updateInterval * SAMPLE_RATE);
+        this.onUpdate(this.audioBuffer);
+      }
     }
   }
 }
