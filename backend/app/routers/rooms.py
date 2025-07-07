@@ -52,22 +52,28 @@ async def get_rooms(sse_manager: Annotated[SSEManager, Depends(get_sse_manager)]
 @router.get("/{room_id}/events")
 async def listen_to_room(
     room_id: str,
-    language_code: LanguageCode,
     sse_manager: Annotated[SSEManager, Depends(get_sse_manager)],
+    target_lang: Annotated[list[str] | None, Query()] = None,
 ):
     if room_id not in sse_manager.rooms:
         raise HTTPException(status_code=404, detail="Room not found.")
 
     # Create a new async queue for this client
-    q: asyncio.Queue[TranscriptionMessage] = asyncio.Queue()
-    sse_manager.subscribe_to_room(room_id, q, language_code)
+    q: asyncio.Queue[TranscriptionMessage | TranslationMessage] = asyncio.Queue()
+    print(f"Subscribing to room: {room_id} with language codes: {target_lang}")
+    sse_manager.subscribe_to_room(room_id, q, target_lang)
 
     async def event_generator():
         try:
             while True:
                 # Wait for new messages in the queue
                 message = await q.get()
-                yield f"data: {json.dumps(message)}\n\n"
+
+                yield create_sse_response(
+                    "translation" if "language_code" in message else "transcription",
+                    message,
+                )
+
         except asyncio.CancelledError:
             # Client disconnected
             print(f"Client disconnected from room: {room_id}")
