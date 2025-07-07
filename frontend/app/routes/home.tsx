@@ -5,17 +5,26 @@ import { useEffect, useRef } from 'react';
 
 import { LoaderCircle } from 'lucide-react';
 import { useToolbar } from '~/stores/toolbar';
+import useRemoteTranscription from '~/hooks/useRemoteTranscription';
+import { ApiClient } from '~/lib/api-client';
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'Tyny | Real-time Translation' }];
 
 // Check WebGPU support safely at runtime
-let IS_WEBGPU_AVAILABLE = false;
-if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
-  IS_WEBGPU_AVAILABLE = !!navigator.gpu;
+// let IS_WEBGPU_AVAILABLE = false;
+// if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
+//   IS_WEBGPU_AVAILABLE = !!navigator.gpu;
+// }
+
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+  const apiClient = new ApiClient();
+  const availableLanguages = await apiClient.getAvailableLanguages();
+  return { availableLanguages };
 }
 
-export default function Home() {
+export default function Home({ loaderData }: Route.ComponentProps) {
+  const { availableLanguages } = loaderData;
   const scrollRef = useRef<HTMLDivElement>(null);
   const { selectedDeviceId, fileBuffer, selectedLanguage } = useToolbar();
 
