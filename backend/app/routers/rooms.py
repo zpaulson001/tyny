@@ -16,7 +16,8 @@ router = APIRouter(prefix="/rooms")
 @router.post("/")
 async def create_room(sse_manager: Annotated[SSEManager, Depends(get_sse_manager)]):
     room_id = sse_manager.create_room()
-    return {"room_id": room_id}
+    print(f"Created room: {room_id}")
+    return {"roomId": room_id}
 
 
 @router.post("/{room_id}")
