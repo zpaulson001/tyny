@@ -6,7 +6,7 @@ from fastapi import HTTPException
 import numpy as np
 from numpy.typing import NDArray
 from app.services.transcription import TranscriptionService
-from app.services.translation import TranslationService
+from app.services.translation import BaseRemoteTranslationService
 
 
 def bytes_to_float32_array(audio_bytes: bytes) -> NDArray[np.float32]:
@@ -107,33 +107,43 @@ class RoomsService:
     def __init__(
         self,
         transcription_service: TranscriptionService,
-        translation_service: TranslationService,
+        translation_service: BaseRemoteTranslationService,
         sse_manager: SSEManager,
     ):
         self.transcription_service = transcription_service
         self.translation_service = translation_service
         self.sse_manager = sse_manager
 
-    def process_audio(self, audio_data: bytes, room_id: str):
-        float32_audio = bytes_to_float32_array(audio_data)
-        transcription = self.transcription_service.transcribe(float32_audio)
-        print(transcription)
-        transcription_message = TranscriptionMessage(
-            committed=None, volatile=transcription
-        )
-        room = self.sse_manager.rooms[room_id]
-        for queue in room.transcriptions:
-            queue.put_nowait(transcription_message)
-
-        target_language_codes = self.sse_manager.get_subscribed_language_codes(room_id)
-
-        translation_messages = [
-            TranslationMessage(
-                committed=None,
-                volatile=self.translation_service.translate(transcription, lang_code),
-                language_code=lang_code,
+    async def process_audio(self, audio_data: bytes, room_id: str, is_utterance: bool):
+        try:
+            transcription = await self.transcription_service.transcribe(audio_data)
+            utterance_id = self.sse_manager.rooms[room_id].utterance_id
+            transcription_message = TranscriptionMessage(
+                committed=transcription if is_utterance else None,
+                volatile=transcription,
+                utterance_id=utterance_id,
             )
-            for lang_code in target_language_codes
-        ]
+            self.sse_manager.push_transcription_message(room_id, transcription_message)
 
-        self.sse_manager.push_translation_messages(room_id, translation_messages)
+            target_language_codes = self.sse_manager.get_subscribed_language_codes(
+                room_id
+            )
+
+            translation_messages = []
+            for lang_code in target_language_codes:
+                translation_result = await self.translation_service.translate(
+                    transcription, lang_code
+                )
+                translation_message = TranslationMessage(
+                    committed=translation_result if is_utterance else None,
+                    volatile=translation_result,
+                    language_code=lang_code,
+                    utterance_id=utterance_id,
+                )
+                translation_messages.append(translation_message)
+
+                self.sse_manager.push_translation_messages(
+                    room_id, translation_messages
+                )
+        except Exception as e:
+            print(e)
