@@ -5,9 +5,8 @@ from typing import TypedDict
 from fastapi import HTTPException
 import numpy as np
 from numpy.typing import NDArray
-from app.lib.language_codes import LanguageCode
-from app.services.transcription import ParakeetService
-from app.services.translation import NLLBService
+from app.services.transcription import TranscriptionService
+from app.services.translation import TranslationService
 
 
 def bytes_to_float32_array(audio_bytes: bytes) -> NDArray[np.float32]:
@@ -107,8 +106,8 @@ class SSEManager:
 class RoomsService:
     def __init__(
         self,
-        transcription_service: ParakeetService,
-        translation_service: NLLBService,
+        transcription_service: TranscriptionService,
+        translation_service: TranslationService,
         sse_manager: SSEManager,
     ):
         self.transcription_service = transcription_service

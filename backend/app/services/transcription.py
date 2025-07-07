@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
 from typing import Literal, TypedDict
+import httpx
 import mlx_whisper
 import numpy as np
 import onnx_asr
 from onnx_asr.adapters import TextResultsAsrAdapter
 from numpy.typing import NDArray
+from app.config import settings
 
 
 class TranscriptionResult(TypedDict):
@@ -12,13 +14,13 @@ class TranscriptionResult(TypedDict):
     processing_time: float
 
 
-class TranscriptionService(ABC):
+class BaseTranscriptionService(ABC):
     @abstractmethod
     def transcribe(self, audio_data: NDArray[np.float32]) -> str:
         pass
 
 
-class MLXWhisperService(TranscriptionService):
+class MLXWhisperService(BaseTranscriptionService):
     def __init__(
         self,
         model_name: Literal[
@@ -68,3 +70,29 @@ class ParakeetService:
         if self.model_name is None:
             raise ValueError("model_name must be provided")
         self.model = onnx_asr.load_model(self.model_name)
+
+
+class TranscriptionService:
+    def __init__(self, http_client: httpx.AsyncClient):
+        self.http_client = http_client
+        self.url = settings.modal_url
+        self.headers = {
+            "Modal-Key": settings.modal_key,
+            "Modal-Secret": settings.modal_secret,
+        }
+
+    async def transcribe(self, audio_data: bytes) -> str:
+        response = await self.http_client.post(
+            self.url + "/transcribe",
+            headers={**self.headers, "Content-Type": "application/octet-stream"},
+            content=audio_data,
+            timeout=None,
+        )
+        print(f"Transcription response: {response.json()}")
+        return response.json()["text"]
+
+    async def warm_up(self):
+        res = await self.http_client.get(
+            self.url + "/status", headers=self.headers, timeout=None
+        )
+        res.raise_for_status()
