@@ -152,7 +152,7 @@ export default function useRemoteTranscription(options: TranscriptionOptions) {
       );
 
       setStreamState(STREAM_STATE.WARMING_UP);
-      await apiClientRef.current?.warmUp();
+      await apiClientRef.current?.wakeUp();
 
       await audioPipelineRef.current.start();
       setStreamState(STREAM_STATE.STREAMING);

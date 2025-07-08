@@ -104,9 +104,13 @@ export class ApiClient {
     }
   }
 
-  public async warmUp() {
+  public async wakeUp() {
     try {
-      const response = await fetch(this.baseUrl + '/warm-up');
+      const response = await fetch(this.baseUrl + '/wake-up');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
     } catch (error) {
       console.error(error);
       throw error;
