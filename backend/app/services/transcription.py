@@ -94,7 +94,7 @@ class TranscriptionService(BaseRemoteTranscriptionService):
         print(f"Transcription response: {response.json()}")
         return response.json()["text"]
 
-    async def warm_up(self):
+    async def wake_up(self):
         res = await self.http_client.get(
             self.url + "/status", headers=self.headers, timeout=None
         )
