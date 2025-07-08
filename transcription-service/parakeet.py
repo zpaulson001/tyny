@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 import modal
 
-app = modal.App("example-parakeet")
+app = modal.App("parakeet-transcriber")
 
 # ## Volume for caching model weights
 
