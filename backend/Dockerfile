@@ -1,20 +1,20 @@
-# Use Python 3.12 Alpine image as base
-FROM python:3.12-alpine
+# Use Python 3.12 slim image as base
+FROM python:3.12-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
 # Install system dependencies for audio processing and ML libraries
-RUN apk add --no-cache \
-    build-base \
+RUN apt-get update && apt-get install -y \
+    build-essential \
     cmake \
-    pkgconfig \
+    pkg-config \
     libffi-dev \
-    openssl-dev \
+    libssl-dev \
     ffmpeg \
-    libsndfile \
-    && rm -rf /var/cache/apk/*
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
