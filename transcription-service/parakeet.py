@@ -85,11 +85,10 @@ image = (
     .pip_install(
         "hf_transfer==0.1.9",
         "huggingface_hub[hf-xet]==0.31.2",
-        "nemo_toolkit[asr]==2.3.0",
+        "nemo_toolkit[asr]==2.3.1",
         "cuda-python==12.8.0",
-        "fastapi==0.115.12",
+        "fastapi==0.116.0",
         "numpy<2",
-        "pydub==0.25.1",
     )
     .entrypoint([])  # silence chatty logs by container on start
     # .add_local_dir(  # changes fastest, so make this the last layer
