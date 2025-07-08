@@ -21,10 +21,12 @@ Although the current implementation can perform transcription and translation, i
   - ✅ Indicate in the toolbar when speech is detected
   - ✅ Notify user when models are loading on startup
   - ✅ Alert user when WebGPU is not supported
-- 📝 Backend system to handle transcription and translation
-  - 📝 Add support for multiple translation languages
-  - 📝 Add support for Nvidia's Parakeet models
-  - 📝 Provide feedback to the user every second
+- ✅ Backend system to handle transcription and translation
+  - ✅ Add support for multiple translation languages
+  - ✅ Add support for Nvidia's Parakeet models
+  - ✅ Provide feedback to the user every second
+  - ✅ Allow users to create translation "rooms" that can be joined by other users
+- 📝 Create a frontend system to handle the translation room
 
 Legend:
 

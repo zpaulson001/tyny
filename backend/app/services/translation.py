@@ -1,148 +1,140 @@
-from typing import Callable, Literal
-from langchain.chat_models import init_chat_model
-from langchain_core.prompts import ChatPromptTemplate
-from app.config import logger
+from abc import ABC, abstractmethod
 
-LANGUAGE_MAP = {
-    "af": "Afrikaans",
-    "ar": "Arabic",
-    "bg": "Bulgarian",
-    "bn": "Bengali",
-    "ca": "Catalan",
-    "cs": "Czech",
-    "da": "Danish",
-    "de": "German",
-    "el": "Greek",
-    "en": "English",
-    "es": "Spanish",
-    "et": "Estonian",
-    "fa": "Persian",
-    "fi": "Finnish",
-    "fr": "French",
-    "he": "Hebrew",
-    "hi": "Hindi",
-    "hr": "Croatian",
-    "hu": "Hungarian",
-    "id": "Indonesian",
-    "it": "Italian",
-    "ja": "Japanese",
-    "ko": "Korean",
-    "lt": "Lithuanian",
-    "lv": "Latvian",
-    "ms": "Malay",
-    "nl": "Dutch",
-    "no": "Norwegian",
-    "pl": "Polish",
-    "pt": "Portuguese",
-    "ro": "Romanian",
-    "ru": "Russian",
-    "sk": "Slovak",
-    "sl": "Slovenian",
-    "sq": "Albanian",
-    "sr": "Serbian",
-    "sv": "Swedish",
-    "sw": "Swahili",
-    "ta": "Tamil",
-    "th": "Thai",
-    "tr": "Turkish",
-    "uk": "Ukrainian",
-    "ur": "Urdu",
-    "vi": "Vietnamese",
-    "zh": "Chinese - Simplified Characters",
-    "zh-CN": "Chinese - Simplified Characters",
-    "zh-TW": "Chinese - Traditional Characters",
-}
+from app.config import settings
+import httpx
 
-LanguageCode = Literal[
-    "af",
-    "ar",
-    "bg",
-    "bn",
-    "ca",
-    "cs",
-    "da",
-    "de",
-    "el",
-    "en",
-    "es",
-    "et",
-    "fa",
-    "fi",
-    "fr",
-    "he",
-    "hi",
-    "hr",
-    "hu",
-    "id",
-    "it",
-    "ja",
-    "ko",
-    "lt",
-    "lv",
-    "ms",
-    "nl",
-    "no",
-    "pl",
-    "pt",
-    "ro",
-    "ru",
-    "sk",
-    "sl",
-    "sq",
-    "sr",
-    "sv",
-    "sw",
-    "ta",
-    "th",
-    "tr",
-    "uk",
-    "ur",
-    "vi",
-    "zh",
-    "zh-CN",
-    "zh-TW",
-]
+# default_model_name = "facebook/nllb-200-distilled-600M"
 
 
-class TranslationService:
-    def __init__(
-        self,
-        model_name: str = "llama-3.1-8b-instant",
-        model_provider: str = "groq",
-    ):
-        self.model = init_chat_model(model=model_name, model_provider=model_provider)
-        self.model_name = model_name
-        self.model_provider = model_provider
-        self.system_prompt = "You are an expert translator. You will be given chunks of text in a source language and you need to translate it into {target_language}.Note that the souce text will have small errors in puncutation in grammar and punctuation and may be missing words. Do your best to translate the text as accurately as possible without adding any additional information or commentary. Output only the translation, nothing more."
-        self.prompt_template = ChatPromptTemplate.from_messages(
-            [
-                ("system", self.system_prompt),
-                ("human", "{text}"),
-            ]
-        )
+class BaseRemoteTranslationService(ABC):
+    @abstractmethod
+    async def translate(self, text: str, language_code: str) -> str:
+        pass
 
-    async def _execute_callback(self, text: str, done_callback: Callable | None = None):
-        if done_callback:
-            await done_callback(text)
+    @abstractmethod
+    async def get_supported_languages(self) -> list[str]:
+        pass
+
+
+# class NLLBService:
+#     def __init__(
+#         self,
+#         model_name: str | None = None,
+#         model: Pipeline | None = None,
+#     ):
+#         self.model_name: str | None = None
+#         self.model: Pipeline | None = None
+#         if model_name is None and model is None:
+#             raise ValueError("Either model_name or model must be provided")
+#         if model_name is not None and model is not None:
+#             raise ValueError("Only one of model_name or model must be provided")
+#         if model_name is not None:
+#             if model_name != default_model_name:
+#                 raise ValueError(f"Only {default_model_name} is supported")
+#             self.model_name = model_name
+#             self.model = None
+#         else:
+#             self.model_name = None
+#             self.model = model
+
+#     def translate(self, text: str, language_code: NLLB_LANGUAGE_CODES) -> str:
+#         if self.model is None:
+#             self.load_model()
+
+#         if self.model is None:
+#             raise RuntimeError("Failed to load model")
+
+#         translated_text = self.model(text, src_lang="eng_Latn", tgt_lang=language_code)
+
+#         return str(translated_text[0]["translation_text"])
+
+#     def load_model(self):
+#         if self.model_name is None:
+#             raise ValueError("model_name must be provided")
+#         self.model = pipeline("translation", model=self.model_name)
+
+
+class AzureTranslationService(BaseRemoteTranslationService):
+    def __init__(self, http_client: httpx.AsyncClient):
+        self.client = http_client
+        self.api_key = settings.azure_translate_api_key
+        self.api_url = settings.azure_translate_url
 
     async def translate(
         self,
         text: str,
-        target_language: LanguageCode,
-        done_callback: Callable | None = None,
-    ):
-        prompt = self.prompt_template.invoke(
-            {"text": text, "target_language": LANGUAGE_MAP[target_language]}
-        )
-        response = await self.model.ainvoke(
-            prompt,
-            config={
-                "configurable": {
-                    "temperature": 0.0,
-                }
+        language_codes: str | list[str],
+    ) -> str:
+        params = {
+            "api-version": "3.0",
+            "from": "en",
+            "to": language_codes,
+        }
+
+        async with httpx.AsyncClient() as client:
+            res = await client.post(
+                self.api_url,
+                params=params,
+                headers={
+                    "Ocp-Apim-Subscription-Key": self.api_key,
+                    "Ocp-Apim-Subscription-Region": settings.azure_region,
+                },
+                json=[{"text": text}],
+            )
+
+        translation = res.json()[0]["translations"][0]["text"]
+        return translation
+
+
+class DeepLTranslationService(BaseRemoteTranslationService):
+    def __init__(self, http_client: httpx.AsyncClient):
+        self.client = http_client
+        self.api_key = settings.deepl_api_key
+        self.api_url = settings.deepl_url
+        self.headers = {
+            "Authorization": f"DeepL-Auth-Key {self.api_key}",
+        }
+
+    async def translate(
+        self,
+        text: str,
+        language_code: str,
+    ) -> str:
+        res = await self.client.post(
+            self.api_url + "/translate",
+            headers=self.headers,
+            json={
+                "text": [text],
+                "target_lang": language_code,
+                "source_lang": "en",
             },
+            timeout=None,
         )
-        translated_text = response.content
-        logger.info(f"Translated text: {translated_text}")
-        await self._execute_callback(str(translated_text), done_callback)
-        return translated_text
+
+        print(res.json())
+        translation = res.json().get("translations", [])[0].get("text", "")
+        return translation
+
+    async def get_supported_languages(self):
+        res = await self.client.get(
+            self.api_url + "/languages",
+            params={"type": "target"},
+            headers=self.headers,
+        )
+
+        # Use a dictionary to track seen names and keep the first occurrence
+        seen_names = {}
+        languages = []
+
+        for language in res.json():
+            name = language.get("name", "")
+            if name and name not in seen_names:
+                seen_names[name] = True
+                languages.append(
+                    {
+                        "code": language.get("language", "").lower(),
+                        "name": name,
+                    }
+                )
+
+        return languages

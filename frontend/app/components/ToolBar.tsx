@@ -13,8 +13,8 @@ import {
 } from 'lucide-react';
 
 import { Input } from './ui/input';
-import { LanguageSelect } from './LanguageSelect';
-import type { AvailableLanguages } from './LanguageSelect';
+import { LanguageCombobox } from './LanguageCombobox';
+import { type AvailableLanguages } from '~/lib/api-client';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import { useToolbar, useToolbarActions } from '~/stores/toolbar';
 
@@ -27,15 +27,16 @@ function PlayStopButton({
   mode: 'file' | 'mic';
   onClick: () => void;
 }) {
+  const isLoading = streamState === 'connecting' || streamState === 'warmingUp';
   if (mode === 'file') {
     return (
       <Button
         variant="outline"
         size="icon"
         onClick={onClick}
-        disabled={streamState === 'connecting'}
+        disabled={isLoading}
       >
-        {streamState === 'connecting' ? (
+        {isLoading ? (
           <LoaderCircle className="animate-spin" />
         ) : streamState === 'streaming' ? (
           <Square />
@@ -68,16 +69,18 @@ interface ToolbarProps {
   streamState: string;
   toggleStreaming: () => void;
   isSpeaking: boolean;
+  languageOptions: AvailableLanguages;
 }
 
 export function Toolbar({
   isSpeaking,
   streamState,
   toggleStreaming,
+  languageOptions,
 }: ToolbarProps) {
-  const { mode, selectedDeviceId, selectedLanguage } = useToolbar();
+  const { mode, selectedDeviceId, selectedLanguages } = useToolbar();
 
-  const { setFileBuffer, setMode, setSelectedDeviceId, setSelectedLanguage } =
+  const { setFileBuffer, setMode, setSelectedDeviceId, setSelectedLanguages } =
     useToolbarActions();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -134,11 +137,10 @@ export function Toolbar({
         />
       )}
 
-      <LanguageSelect
-        value={selectedLanguage}
-        onChange={(language) =>
-          setSelectedLanguage(language as AvailableLanguages)
-        }
+      <LanguageCombobox
+        options={languageOptions}
+        values={selectedLanguages}
+        onChange={(languages) => setSelectedLanguages(languages)}
         disabled={streamState !== 'idle'}
       />
 

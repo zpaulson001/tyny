@@ -1,28 +1,31 @@
 import { create } from 'zustand';
 
-interface Text {
-  committed?: string;
-  volatile?: string;
+interface TranscriptionToken {
+  value: string;
+  tokenId: number;
 }
 
-interface Translations {
-  [languageCode: string]: Text;
+interface TranslationToken {
+  value: string;
+  tokenId: number;
 }
 
 interface UtteranceActions {
-  putTranscription: (utteranceId: number, transcription: Text) => void;
-  putTranslation: (
+  addTranscriptionToken: (
     utteranceId: number,
-    languageCode: string,
-    translation: Text
+    transcription: TranscriptionToken
+  ) => void;
+  addTranslationToken: (
+    utteranceId: number,
+    translation: TranslationToken
   ) => void;
   clearUtterances: () => void;
 }
 
 interface Utterance {
   utteranceId: number;
-  transcription: Text;
-  translations: Translations;
+  transcription: TranscriptionToken[];
+  translation?: TranslationToken[];
 }
 
 interface UtteranceStore {
@@ -33,25 +36,24 @@ interface UtteranceStore {
 const useUtteranceStore = create<UtteranceStore>((set) => ({
   utterances: new Map(),
   actions: {
-    putTranscription: (utteranceId: number, transcription: Text) =>
+    addTranscriptionToken: (
+      utteranceId: number,
+      transcription: TranscriptionToken
+    ) =>
       set((state) => {
         const newUtterances = new Map(state.utterances);
         if (!newUtterances.has(utteranceId)) {
           newUtterances.set(utteranceId, {
             utteranceId,
-            transcription,
-            translations: {},
+            transcription: [transcription],
+            translation: [],
           });
         } else {
-          newUtterances.get(utteranceId)!.transcription = transcription;
+          newUtterances.get(utteranceId)?.transcription.push(transcription);
         }
         return { utterances: newUtterances };
       }),
-    putTranslation: (
-      utteranceId: number,
-      languageCode: string,
-      translation: Text
-    ) =>
+    addTranslationToken: (utteranceId: number, translation: TranslationToken) =>
       set((state) => {
         const newUtterances = new Map(state.utterances);
         const utterance = newUtterances.get(utteranceId);
@@ -60,7 +62,11 @@ const useUtteranceStore = create<UtteranceStore>((set) => ({
           return { utterances: newUtterances };
         }
 
-        utterance.translations[languageCode] = translation;
+        if (!utterance.translation) {
+          utterance.translation = [translation];
+        } else {
+          utterance.translation.push(translation);
+        }
 
         return { utterances: newUtterances };
       }),

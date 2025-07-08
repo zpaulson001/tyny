@@ -77,3 +77,14 @@ export function saveFloat32ArrayToWav(
   a.download = fileName || `recording-${new Date().toISOString()}.wav`;
   a.click();
 }
+
+export function convertFloat32ArrayToInt16Array(audioBuffer: Float32Array) {
+  const int16Array = new Int16Array(audioBuffer.length);
+  for (let i = 0; i < audioBuffer.length; i++) {
+    int16Array[i] = Math.max(
+      -32768,
+      Math.min(32767, Math.round(audioBuffer[i] * 32767))
+    );
+  }
+  return int16Array;
+}
