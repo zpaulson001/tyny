@@ -50,3 +50,8 @@ async def warm_up(
 ):
     await transcription_service.warm_up()
     return {"message": "Warm up complete"}
+
+
+@app.get("/health")
+async def health():
+    return {"message": "OK"}
