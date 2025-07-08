@@ -1,8 +1,8 @@
-name: Fly Deploy
+name: Fly Deploy Staging
 on:
   push:
     branches:
-      - multi-client-streaming
+      - dev
 jobs:
   deploy:
     name: Deploy app
@@ -11,6 +11,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy ./backend --remote-only -a mcs
+      - run: flyctl deploy ./backend --remote-only --config ./fly.staging.toml
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
