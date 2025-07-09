@@ -103,6 +103,7 @@ class SSEManager:
     def push_translation_message(
         self,
         room_id: str,
+        utterance_id: int,
         translation: str,
         is_utterance: bool,
         language_code: str,
@@ -120,7 +121,7 @@ class SSEManager:
             committed=translation if is_utterance else None,
             volatile=translation,
             language_code=language_code,
-            utterance_id=self.rooms[room_id].utterance_id,
+            utterance_id=utterance_id,
         )
 
         if translation_message["language_code"] in translation_dict:
@@ -168,6 +169,7 @@ class RoomsService:
         try:
             received_ts = time.time()
             transcription = await self.transcription_service.transcribe(audio_data)
+            current_utterance_id = self.sse_manager.rooms[room_id].utterance_id
             self.sse_manager.push_transcription_message(
                 room_id,
                 transcription,
@@ -187,6 +189,7 @@ class RoomsService:
 
                 self.sse_manager.push_translation_message(
                     room_id,
+                    current_utterance_id,
                     translation_result,
                     is_utterance,
                     language_code=lang_code,
