@@ -52,8 +52,19 @@ async def send_audio(
 
 
 @router.get("/")
-async def get_rooms(sse_manager: Annotated[SSEManager, Depends(get_sse_manager)]):
-    return {"rooms": list(sse_manager.rooms.keys())}
+async def get_all_rooms(
+    rooms_service: Annotated[RoomsService, Depends(get_rooms_service)],
+):
+    return {"rooms": rooms_service.get_all_rooms()}
+
+
+@router.get("/{room_id}")
+async def get_room(
+    room_id: str, rooms_service: Annotated[RoomsService, Depends(get_rooms_service)]
+):
+    if not rooms_service.get_room(room_id):
+        raise HTTPException(status_code=404, detail="Room not found.")
+    return None
 
 
 @router.get("/{room_id}/events")

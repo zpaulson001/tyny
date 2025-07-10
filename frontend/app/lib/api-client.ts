@@ -116,4 +116,15 @@ export class ApiClient {
       throw error;
     }
   }
+
+  public async getRoom(roomId: string) {
+    const response = await fetch(this.baseUrl + `/rooms/${roomId}`);
+    if (response.status === 404) {
+      throw new Error('Room not found');
+    }
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  }
 }

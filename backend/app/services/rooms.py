@@ -165,6 +165,12 @@ class RoomsService:
         self.translation_service = translation_service
         self.sse_manager = sse_manager
 
+    def get_all_rooms(self) -> list[str]:
+        return list(self.sse_manager.rooms.keys())
+
+    def get_room(self, room_id: str) -> bool:
+        return room_id in self.sse_manager.rooms
+
     async def process_audio(self, audio_data: bytes, room_id: str, is_utterance: bool):
         try:
             received_ts = time.time()
