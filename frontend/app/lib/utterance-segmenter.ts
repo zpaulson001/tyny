@@ -61,8 +61,6 @@ export default class UtteranceSegmenter {
           CHUNK_SIZE &&
         this.containsSpeech
       ) {
-        console.log('buffer length', this.audioBuffer.length);
-        console.log('update interval', this.updateInterval * SAMPLE_RATE);
         this.onUpdate(this.audioBuffer);
       }
     }
