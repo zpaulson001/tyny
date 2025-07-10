@@ -67,7 +67,7 @@ function PlayStopButton({
 
 interface ToolbarProps {
   streamState: string;
-  toggleStreaming: () => void;
+  onToggle: () => void;
   isSpeaking: boolean;
   languageOptions: AvailableLanguages;
 }
@@ -75,7 +75,7 @@ interface ToolbarProps {
 export function Toolbar({
   isSpeaking,
   streamState,
-  toggleStreaming,
+  onToggle,
   languageOptions,
 }: ToolbarProps) {
   const { mode, selectedDeviceId, selectedLanguages } = useToolbar();
@@ -156,7 +156,7 @@ export function Toolbar({
       <PlayStopButton
         streamState={streamState}
         mode={mode}
-        onClick={toggleStreaming}
+        onClick={onToggle}
       />
     </div>
   );

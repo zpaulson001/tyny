@@ -4,8 +4,9 @@ import { useEffect, useRef } from 'react';
 
 import { LoaderCircle } from 'lucide-react';
 import { useToolbar } from '~/stores/toolbar';
-import useRemoteTranscription from '~/hooks/useRemoteTranscription';
 import { ApiClient } from '~/lib/api-client';
+import useRemoteTranscription from '~/hooks/useRemoteTranscription';
+import useSubscription from '~/hooks/useSubscription';
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'Tyny | Real-time Translation' }];
@@ -28,14 +29,18 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { selectedDeviceId, fileBuffer, selectedLanguages } = useToolbar();
 
-  const { streamState, toggleStreaming, isSpeaking, utterances } =
-    useRemoteTranscription({
-      input: {
-        deviceId: selectedDeviceId,
-        file: fileBuffer,
-      },
+  const { subscriptionState, toggleSubscribing, utterances, clearUtterances } =
+    useSubscription({
       targetLanguages: selectedLanguages,
     });
+
+  const { streamState, toggleStreaming, isSpeaking } = useRemoteTranscription({
+    input: {
+      deviceId: selectedDeviceId,
+      file: fileBuffer,
+    },
+    onRoomCreated: toggleSubscribing,
+  });
 
   // Helper function to get loading message based on stream state
   const getLoadingMessage = () => {
@@ -136,7 +141,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         <Toolbar
           isSpeaking={isSpeaking}
           streamState={streamState}
-          toggleStreaming={toggleStreaming}
+          onToggle={() => {
+            toggleStreaming();
+            toggleSubscribing();
+          }}
           languageOptions={availableLanguages}
         />
       </div>
