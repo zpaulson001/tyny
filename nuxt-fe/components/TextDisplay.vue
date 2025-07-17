@@ -41,13 +41,7 @@ const getUtteranceItems = (utterance: any) => {
 
 // Watch for changes in utterances and scroll to bottom
 watch(utterances, (newUtterances, oldUtterances) => {
-  console.log("utterances changed", {
-    newSize: newUtterances.size,
-    oldSize: oldUtterances?.size,
-    newUtterances: Array.from(newUtterances.entries())
-  });
   nextTick(() => {
-    console.log('scrollRef', scrollRef.value);
     if (scrollRef.value) {
       scrollRef.value.scrollIntoView({ behavior: 'smooth' });
     }

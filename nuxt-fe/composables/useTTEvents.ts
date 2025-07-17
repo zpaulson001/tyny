@@ -45,12 +45,7 @@ export function useTTEvents(options: TTEventsOptions = {}) {
         `${config.public.apiBaseUrl}/rooms/${roomIdRef.value}/events?${languageQueryString}`
       );
 
-      console.log('eventSource', eventSource);
-
-      console.log('connecting to room', roomIdRef.value);
-
       eventSource?.addEventListener('open', (event) => {
-        console.log('connected to room', roomIdRef.value);
         connectionState.value = CONNECTION_STATE.CONNECTED;
       });
 
@@ -78,8 +73,6 @@ export function useTTEvents(options: TTEventsOptions = {}) {
         console.error('Error starting subscription:', event);
         connectionState.value = CONNECTION_STATE.ERROR;
       });
-
-      connectionState.value = CONNECTION_STATE.CONNECTED;
     } catch (error) {
       console.error('Error starting subscription:', error);
       connectionState.value = CONNECTION_STATE.ERROR;

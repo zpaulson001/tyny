@@ -12,7 +12,6 @@ onMounted(() => {
 });
 
 async function handleSubmit() {
-  console.log('handleSubmit');
   if (roomCode.value.length !== 4 || !roomCode.value.match(/^\d+$/)) {
     errorMessage.value = 'Room code must be 4 digits';
   } else {

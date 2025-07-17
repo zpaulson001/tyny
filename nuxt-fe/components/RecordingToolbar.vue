@@ -62,7 +62,6 @@ const handleShareClick = (event: Event) => {
 };
 
 const handleButtonClick = async () => {
-  console.log('handleButtonClick');
   toggleConnection(roomId);
   await toggleStreaming();
 };
@@ -71,7 +70,6 @@ const handleCopyClick = async () => {
   try {
     await navigator.clipboard.writeText(roomUrl.value);
     // Optionally, show a toast or notification here
-    console.log('Room URL copied to clipboard');
   } catch (err) {
     console.error('Failed to copy to clipboard:', err);
   }
