@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 import random
 import time
 from typing import TypedDict
+import uuid
 from fastapi import HTTPException
 import numpy as np
 from numpy.typing import NDArray
@@ -41,16 +42,14 @@ class TranslationMessage(TranscriptionMessage):
 
 class LanguageDict(TypedDict):
     last_ts: float
-    queues: list[asyncio.Queue[TranslationMessage | TranscriptionMessage]]
+    client_ids: set[str]
 
 
 @dataclass
 class Room:
     utterance_id: int = 0
     last_transcription_ts: float = 0
-    transcriptions: list[asyncio.Queue[TranscriptionMessage | TranslationMessage]] = (
-        field(default_factory=list)
-    )
+    transcription_subscribers: set[str] = field(default_factory=set)
     translations: dict[str, LanguageDict] = field(default_factory=dict)
 
 
@@ -71,7 +70,7 @@ class SSEManager:
     def subscribe_to_room(
         self,
         room_id: str,
-        queue: asyncio.Queue[TranscriptionMessage | TranslationMessage],
+        client_id: str,
         language_code: str | list[str] | None = None,
         no_transcriptions: bool = False,
     ):
@@ -81,7 +80,7 @@ class SSEManager:
         room = self.rooms[room_id]
 
         if not no_transcriptions:
-            room.transcriptions.append(queue)
+            room.transcription_subscribers.add(client_id)
 
         if language_code is not None:
             lang_code_arr = (
@@ -91,10 +90,11 @@ class SSEManager:
             for lang_code in lang_code_arr:
                 if lang_code not in room.translations:
                     room.translations[lang_code] = LanguageDict(
-                        last_ts=0, queues=[queue]
+                        last_ts=0, client_ids=set()
                     )
-                else:
-                    room.translations[lang_code]["queues"].append(queue)
+                room.translations[lang_code]["client_ids"].add(client_id)
+
+        room.client_queues[client_id] = asyncio.Queue()
 
     def get_subscribed_language_codes(self, room_id: str) -> list[str]:
         room = self.rooms[room_id]
@@ -125,10 +125,12 @@ class SSEManager:
         )
 
         if translation_message["language_code"] in translation_dict:
-            for queue in translation_dict[translation_message["language_code"]][
-                "queues"
+            for client_id in translation_dict[translation_message["language_code"]][
+                "client_ids"
             ]:
-                queue.put_nowait(translation_message)
+                self.rooms[room_id].client_queues[client_id].put_nowait(
+                    translation_message
+                )
 
         translation_dict[language_code]["last_ts"] = received_ts
 
@@ -146,12 +148,19 @@ class SSEManager:
         )
 
         room = self.rooms[room_id]
-        for queue in room.transcriptions:
-            queue.put_nowait(transcription_message)
+        for client_id in room.transcription_subscribers:
+            room.client_queues[client_id].put_nowait(transcription_message)
 
         self.rooms[room_id].last_transcription_ts = received_ts
         if transcription_message["committed"]:
             room.utterance_id += 1
+
+    def unsubscribe_from_room(self, room_id: str, client_id: str):
+        room = self.rooms[room_id]
+        room.transcription_subscribers.discard(client_id)
+        for lang_dict in room.translations.values():
+            lang_dict["client_ids"].discard(client_id)
+        room.client_queues.pop(client_id)
 
 
 class RoomsService:
