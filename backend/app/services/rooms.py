@@ -102,7 +102,11 @@ class SSEManager:
 
     def get_subscribed_language_codes(self, room_id: str) -> list[str]:
         room = self.rooms[room_id]
-        return list(room.translations.keys())
+        return [
+            lang_code
+            for lang_code in room.translations.keys()
+            if len(room.translations[lang_code]["client_ids"]) > 0
+        ]
 
     def push_translation_message(
         self,
