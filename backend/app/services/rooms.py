@@ -7,6 +7,7 @@ import uuid
 from fastapi import HTTPException
 import numpy as np
 from numpy.typing import NDArray
+from app.lib.sse import create_sse_response
 from app.services.transcription import TranscriptionService
 from app.services.translation import BaseRemoteTranslationService
 
@@ -51,6 +52,9 @@ class Room:
     last_transcription_ts: float = 0
     transcription_subscribers: set[str] = field(default_factory=set)
     translations: dict[str, LanguageDict] = field(default_factory=dict)
+    client_queues: dict[
+        str, asyncio.Queue[TranscriptionMessage | TranslationMessage]
+    ] = field(default_factory=dict)
 
 
 class SSEManager:
@@ -212,3 +216,37 @@ class RoomsService:
                 )
         except Exception as e:
             print(e)
+
+    async def listen_to_room(self, room_id: str, target_lang: list[str] | None = None):
+        if room_id not in self.sse_manager.rooms:
+            raise HTTPException(status_code=404, detail="Room not found.")
+
+        client_id = str(uuid.uuid4())
+
+        self.sse_manager.subscribe_to_room(room_id, client_id, target_lang)
+
+        async def event_generator():
+            try:
+                while True:
+                    # Wait for new messages in the queue
+                    message = (
+                        await self.sse_manager.rooms[room_id]
+                        .client_queues[client_id]
+                        .get()
+                    )
+
+                    print(message)
+
+                    yield create_sse_response(
+                        "translation"
+                        if "language_code" in message
+                        else "transcription",
+                        message,
+                    )
+
+            except asyncio.CancelledError:
+                # Client disconnected
+                self.sse_manager.unsubscribe_from_room(room_id, client_id)
+                print(f"Client disconnected from room: {room_id}")
+
+        return event_generator
