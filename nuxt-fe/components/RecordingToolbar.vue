@@ -114,7 +114,7 @@ const handleCopyClick = async () => {
         <SpeachActivityIcon :speaking="isSpeaking" />
         <Button :icon="streamState === 'streaming' ? 'pi pi-stop' : mode === 'Mic' ? 'pi pi-circle-fill' : 'pi pi-play'"
           :severity="mode === 'Mic' ? 'danger' : undefined" aria-label="Record" @click="handleButtonClick"
-          :loading="streamState === 'startingUp' || streamState === 'connecting'" />
+          :loading="streamState === 'startingUp' || streamState === 'connecting'" class="shrink-0" />
       </div>
     </template>
   </Toolbar>
