@@ -7,14 +7,12 @@ from fastapi import (
     HTTPException,
     Query,
 )
-import asyncio
 
 from fastapi.responses import StreamingResponse
 
 from app.globals import SSEManager
 from app.lib.dependencies import get_rooms_service, get_sse_manager
-from app.lib.sse import create_sse_response
-from app.services.rooms import RoomsService, TranscriptionMessage, TranslationMessage
+from app.services.rooms import RoomsService
 
 router = APIRouter(prefix="/rooms")
 
@@ -52,37 +50,27 @@ async def send_audio(
 
 
 @router.get("/")
-async def get_rooms(sse_manager: Annotated[SSEManager, Depends(get_sse_manager)]):
-    return {"rooms": list(sse_manager.rooms.keys())}
+async def get_all_rooms(
+    rooms_service: Annotated[RoomsService, Depends(get_rooms_service)],
+):
+    return {"rooms": rooms_service.get_all_rooms()}
+
+
+@router.get("/{room_id}")
+async def get_room(
+    room_id: str, rooms_service: Annotated[RoomsService, Depends(get_rooms_service)]
+):
+    if not rooms_service.get_room(room_id):
+        raise HTTPException(status_code=404, detail="Room not found.")
+    return None
 
 
 @router.get("/{room_id}/events")
 async def listen_to_room(
     room_id: str,
-    sse_manager: Annotated[SSEManager, Depends(get_sse_manager)],
+    rooms_service: Annotated[RoomsService, Depends(get_rooms_service)],
     target_lang: Annotated[list[str] | None, Query()] = None,
 ):
-    if room_id not in sse_manager.rooms:
-        raise HTTPException(status_code=404, detail="Room not found.")
-
-    # Create a new async queue for this client
-    q: asyncio.Queue[TranscriptionMessage | TranslationMessage] = asyncio.Queue()
-    print(f"Subscribing to room: {room_id} with language codes: {target_lang}")
-    sse_manager.subscribe_to_room(room_id, q, target_lang)
-
-    async def event_generator():
-        try:
-            while True:
-                # Wait for new messages in the queue
-                message = await q.get()
-
-                yield create_sse_response(
-                    "translation" if "language_code" in message else "transcription",
-                    message,
-                )
-
-        except asyncio.CancelledError:
-            # Client disconnected
-            print(f"Client disconnected from room: {room_id}")
+    event_generator = await rooms_service.listen_to_room(room_id, target_lang)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

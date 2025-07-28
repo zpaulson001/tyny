@@ -1,73 +1,17 @@
-import { Button } from './ui/button';
 import { DeviceSelect } from './DeviceSelect';
 
-import {
-  Circle,
-  LoaderCircle,
-  Speech,
-  Square,
-  FileMusic,
-  Mic,
-  Play,
-  Ellipsis,
-} from 'lucide-react';
+import { Speech, FileMusic, Mic, Ellipsis } from 'lucide-react';
 
 import { Input } from './ui/input';
 import { LanguageCombobox } from './LanguageCombobox';
 import { type AvailableLanguages } from '~/lib/api-client';
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import { useToolbar, useToolbarActions } from '~/stores/toolbar';
-
-function PlayStopButton({
-  streamState,
-  mode,
-  onClick,
-}: {
-  streamState: string;
-  mode: 'file' | 'mic';
-  onClick: () => void;
-}) {
-  const isLoading = streamState === 'connecting' || streamState === 'warmingUp';
-  if (mode === 'file') {
-    return (
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={onClick}
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <LoaderCircle className="animate-spin" />
-        ) : streamState === 'streaming' ? (
-          <Square />
-        ) : (
-          <Play />
-        )}
-      </Button>
-    );
-  }
-
-  return (
-    <Button
-      variant={streamState === 'streaming' ? 'destructive' : 'outline'}
-      size="icon"
-      onClick={onClick}
-      disabled={streamState === 'connecting'}
-    >
-      {streamState === 'connecting' ? (
-        <LoaderCircle className="animate-spin" />
-      ) : streamState === 'streaming' ? (
-        <Square />
-      ) : (
-        <Circle fill="var(--destructive)" stroke="transparent" />
-      )}
-    </Button>
-  );
-}
+import PlayStopButton from './PlayStopButton';
 
 interface ToolbarProps {
   streamState: string;
-  toggleStreaming: () => void;
+  onToggle: () => void;
   isSpeaking: boolean;
   languageOptions: AvailableLanguages;
 }
@@ -75,7 +19,7 @@ interface ToolbarProps {
 export function Toolbar({
   isSpeaking,
   streamState,
-  toggleStreaming,
+  onToggle,
   languageOptions,
 }: ToolbarProps) {
   const { mode, selectedDeviceId, selectedLanguages } = useToolbar();
@@ -156,7 +100,7 @@ export function Toolbar({
       <PlayStopButton
         streamState={streamState}
         mode={mode}
-        onClick={toggleStreaming}
+        onClick={onToggle}
       />
     </div>
   );

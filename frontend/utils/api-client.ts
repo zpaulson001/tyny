@@ -1,5 +1,10 @@
 import { convertFloat32ArrayToInt16Array } from './audio-utils';
 import { z } from 'zod';
+import { useRuntimeConfig } from '#imports';
+
+const {
+  public: { apiBaseUrl },
+} = useRuntimeConfig();
 
 // Define Zod schemas for API responses
 const RoomResponseSchema = z.object({
@@ -22,7 +27,7 @@ export class ApiClient {
 
   constructor() {
     this.roomId = '';
-    this.baseUrl = import.meta.env.VITE_SERVER_URL;
+    this.baseUrl = apiBaseUrl;
   }
 
   public async createRoom(): Promise<RoomResponse> {
@@ -115,5 +120,16 @@ export class ApiClient {
       console.error(error);
       throw error;
     }
+  }
+
+  public async getRoom(roomId: string) {
+    const response = await fetch(this.baseUrl + `/rooms/${roomId}`);
+    if (response.status === 404) {
+      throw new Error('Room not found');
+    }
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
   }
 }

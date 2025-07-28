@@ -2,10 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { AudioPipeline } from '~/lib/audio-pipeline';
 import { concatenateFloat32Arrays } from '~/lib/audio-utils';
 import UtteranceSegmenter from '~/lib/utterance-segmenter';
-import { useUtteranceActions, useUtterances } from '~/stores/utterance';
 import { ApiClient } from '~/lib/api-client';
-
-const SAMPLE_RATE = 16000;
 
 const STREAM_STATE = {
   IDLE: 'idle',
@@ -26,9 +23,9 @@ interface TranscriptionOptions {
     deviceId?: string;
     file?: ArrayBuffer;
   };
-  targetLanguages?: string[];
   speechProbThreshold?: number;
   silenceDuration?: number;
+  onRoomCreated?: (roomId: string) => void;
 }
 
 export default function useRemoteTranscription(options: TranscriptionOptions) {
@@ -37,9 +34,6 @@ export default function useRemoteTranscription(options: TranscriptionOptions) {
   const [streamState, setStreamState] = useState<StreamState>(
     STREAM_STATE.IDLE
   );
-  const utterances = useUtterances();
-  const { putTranscription, putTranslation, clearUtterances } =
-    useUtteranceActions();
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const vadWorkerRef = useRef<Worker | null>(null);
@@ -47,13 +41,12 @@ export default function useRemoteTranscription(options: TranscriptionOptions) {
   const utteranceSegmenterRef = useRef<UtteranceSegmenter | null>(null);
   const {
     input,
-    targetLanguages,
     speechProbThreshold = 0.5,
     silenceDuration = 0.7,
+    onRoomCreated,
   } = options;
 
   const apiClientRef = useRef<ApiClient | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
 
   const removeEventListeners = () => {
     vadWorkerRef.current?.removeEventListener('message', vadOnMessageReceived);
@@ -102,30 +95,7 @@ export default function useRemoteTranscription(options: TranscriptionOptions) {
       setStreamState(STREAM_STATE.CONNECTING);
 
       await apiClientRef.current?.createRoom();
-      console.log('apiClientRef.current', apiClientRef.current);
-
-      const languageQueryString = targetLanguages
-        ?.map((language) => `target_lang=${language}`)
-        .join('&');
-
-      eventSourceRef.current = new EventSource(
-        `${import.meta.env.VITE_SERVER_URL}/rooms/${apiClientRef.current?.roomId}/events?${languageQueryString}`
-      );
-
-      eventSourceRef.current?.addEventListener('transcription', (event) => {
-        const transcription = JSON.parse(event.data);
-        putTranscription(transcription.utterance_id, {
-          committed: transcription.committed,
-          volatile: transcription.volatile,
-        });
-      });
-      eventSourceRef.current?.addEventListener('translation', (event) => {
-        const translation = JSON.parse(event.data);
-        putTranslation(translation.utterance_id, translation.language_code, {
-          committed: translation.committed,
-          volatile: translation.volatile,
-        });
-      });
+      onRoomCreated?.(apiClientRef.current?.roomId || '');
 
       // Only include deviceId in constraints if it's not empty
       const constraints: MediaStreamConstraints = {
@@ -165,7 +135,7 @@ export default function useRemoteTranscription(options: TranscriptionOptions) {
         mediaStreamRef.current = null;
       }
     }
-  }, [input.deviceId, input.file, targetLanguages]);
+  }, [input.deviceId, input.file]);
 
   const stopStreaming = async () => {
     if (audioPipelineRef.current) {
@@ -176,7 +146,6 @@ export default function useRemoteTranscription(options: TranscriptionOptions) {
       mediaStreamRef.current = null;
     }
     vadWorkerRef.current?.postMessage({ type: 'reset' });
-    eventSourceRef.current?.close();
 
     fullAudioBufferRef.current = new Float32Array(0);
 
@@ -224,6 +193,5 @@ export default function useRemoteTranscription(options: TranscriptionOptions) {
     streamState,
     toggleStreaming,
     isSpeaking,
-    utterances,
   };
 }
