@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import asyncio
 import os
-import websockets
+import time
+import requests
 import soundfile as sf
 import numpy as np
 import argparse
@@ -9,7 +10,12 @@ from pathlib import Path
 import librosa
 
 
-async def stream_audio(websocket, audio_path):
+def create_room(url):
+    response = requests.post(url)
+    return response.json()["room_id"]
+
+
+def stream_audio(url, chunk_duration=1):
     # Load the audio file
     audio_data, sample_rate = sf.read(audio_path)
 
@@ -27,41 +33,25 @@ async def stream_audio(websocket, audio_path):
     # Convert to 16-bit PCM
     audio_data = (audio_data * 32767).astype(np.int16)
 
-    # Calculate chunk size for 100ms
-    chunk_samples = int(sample_rate * 0.1)
+    # Calculate chunk size for 1s
+    chunk_samples = int(sample_rate * chunk_duration)
 
     # Stream chunks
     for i in range(0, len(audio_data), chunk_samples):
         chunk = audio_data[i : i + chunk_samples]
-        await websocket.send(chunk.tobytes())
+        requests.post(url, data=chunk.tobytes())
 
-        # Receive and log any response from the server with timeout
-        try:
-            response = await asyncio.wait_for(
-                websocket.recv(), timeout=0.01
-            )  # 10ms timeout
-            print(f"Received from server: {response}")
-        except asyncio.TimeoutError:
-            pass  # No response within timeout
-        except websockets.exceptions.WebSocketException:
-            pass  # Connection error
-
-        await asyncio.sleep(0.1)  # Wait 100ms between chunks
+        time.sleep(chunk_duration)  # Wait 1s between chunks
 
 
 async def main(audio_path, language):
-    uri = f"ws://localhost:{os.getenv('PORT', 3000)}/ws?language={language}"
-    try:
-        async with websockets.connect(uri) as websocket:
-            print(f"Connected to {uri}")
-            print(f"Streaming audio file: {audio_path}")
-            print(f"Target language: {language}")
-            await stream_audio(websocket, audio_path)
-            print("Streaming completed")
-    except websockets.exceptions.ConnectionClosed:
-        print("Connection closed unexpectedly")
-    except Exception as e:
-        print(f"Error: {str(e)}")
+    base_url = f"http://localhost:{os.getenv('PORT', 3000)}"
+    create_room_url = f"{base_url}/rooms"
+    room_id = create_room(create_room_url)
+    send_audio_url = f"{base_url}/rooms/{room_id}"
+    print(f"Room ID: {room_id}")
+
+    stream_audio(send_audio_url)
 
 
 if __name__ == "__main__":

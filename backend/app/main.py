@@ -1,35 +1,50 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-from app.routers import parakeet_websocket as websocket
-from app.services.transcription import ParakeetService
-from app.dependencies import set_parakeet_service
 from contextlib import asynccontextmanager
+from typing import Annotated
+from fastapi import Depends, FastAPI
+from app.lib.dependencies import get_transcription_service
+from app.routers import rooms, languages
+from app.globals import httpx_client
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.services.transcription import TranscriptionService
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize Parakeet model
-    parakeet_service = ParakeetService(model_name="mlx-community/parakeet-tdt-0.6b-v2")
-    parakeet_service.load_model()
-    set_parakeet_service(parakeet_service)
     yield
-    # Shutdown: Clean up resources if needed
-    set_parakeet_service(None)
 
+    await httpx_client.aclose()
+
+
+origins = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "http://localhost:5173",
+    "https://dev.tyny.pages.dev",
+]
 
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.include_router(rooms.router)
+app.include_router(languages.router)
 
-# Include the websocket router
-app.include_router(websocket.router)
 
-# Initialize Jinja2 templates
-templates = Jinja2Templates(directory="app/templates")
+@app.get("/wake-up")
+async def wake_up(
+    transcription_service: Annotated[
+        TranscriptionService, Depends(get_transcription_service)
+    ],
+):
+    await transcription_service.wake_up()
+    return {"message": "Wake up complete"}
 
 
-@app.get("/", response_class=HTMLResponse)
-async def get(request: Request):
-    # You can adjust the websocket_url based on your configuration
-    return templates.TemplateResponse(
-        "index.html", {"request": request, "websocket_url": "localhost:3000"}
-    )
+@app.get("/health")
+async def health():
+    return {"message": "OK"}
