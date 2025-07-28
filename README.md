@@ -26,7 +26,12 @@ Although the current implementation can perform transcription and translation, i
   - ✅ Add support for Nvidia's Parakeet models
   - ✅ Provide feedback to the user every second
   - ✅ Allow users to create translation "rooms" that can be joined by other users
-- 📝 Create a frontend system to handle the translation room
+- ✅ Create a frontend system to handle translation rooms
+
+## Chores
+
+- [ ] Migrate transcription service from Modal to Cloudrun for faster startup times
+- [ ] Migrate FE to Nuxt 4
 
 Legend:
 
