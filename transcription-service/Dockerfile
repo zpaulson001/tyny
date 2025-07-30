@@ -43,7 +43,7 @@ RUN python -c "import nemo.collections.asr as nemo_asr; \
         logger.info('Loading NeMo ASR model...'); \
         nemo_asr.models.ASRModel.from_pretrained( \
             model_name='nvidia/parakeet-tdt-0.6b-v2' \
-        )
+        ); \
         logger.info('Model loaded successfully!')"
 
 # Copy application code
