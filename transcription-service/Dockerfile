@@ -37,14 +37,11 @@ COPY pyproject.toml uv.lock ./
 
 RUN uv sync --locked
 
-RUN python -c "import nemo.collections.asr as nemo_asr; \
-        import logging; \
-        logger = logging.getLogger(__name__); \
-        logger.info('Loading NeMo ASR model...'); \
-        nemo_asr.models.ASRModel.from_pretrained( \
-            model_name='nvidia/parakeet-tdt-0.6b-v2' \
-        ); \
-        logger.info('Model loaded successfully!')"
+# Copy the model loading script
+COPY load_nemo_model.py ./
+
+# Run the model loading script
+RUN uv run load_nemo_model.py
 
 # Copy application code
 COPY app/ ./app/
