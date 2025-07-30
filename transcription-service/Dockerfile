@@ -6,7 +6,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV HF_HUB_ENABLE_HF_TRANSFER="1"
-ENV HF_HOME="/cache"
+ENV HF_HOME="/root/.cache/huggingface"
 ENV DEBIAN_FRONTEND="noninteractive"
 ENV CXX="g++"
 ENV CC="g++"
@@ -36,6 +36,13 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 
 RUN uv sync --locked
+
+RUN python -c "import nemo.collections.asr as nemo_asr; \
+        logger.info('Loading NeMo ASR model...'); \
+        nemo_asr.models.ASRModel.from_pretrained( \
+            model_name='nvidia/parakeet-tdt-0.6b-v2' \
+        )
+        logger.info('Model loaded successfully!')"
 
 # Copy application code
 COPY app/ ./app/
