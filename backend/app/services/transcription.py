@@ -4,6 +4,7 @@ import httpx
 import numpy as np
 from numpy.typing import NDArray
 from app.config import settings
+import google.oauth2.id_token
 
 
 class BaseRemoteTranscriptionService(ABC):
@@ -75,7 +76,7 @@ class BaseTranscriptionService(ABC):
 #         self.model = onnx_asr.load_model(self.model_name)
 
 
-class TranscriptionService(BaseRemoteTranscriptionService):
+class GCPTranscriptionService(BaseRemoteTranscriptionService):
     def __init__(self, http_client: httpx.AsyncClient):
         self.http_client = http_client
         self.url = settings.modal_url
@@ -83,11 +84,21 @@ class TranscriptionService(BaseRemoteTranscriptionService):
             "Modal-Key": settings.modal_key,
             "Modal-Secret": settings.modal_secret,
         }
+        self.id_token = self._get_id_token()
+
+    def _get_id_token(self):
+        auth_req = google.auth.transport.requests.Request()
+        target_audience = self.url
+        return google.oauth2.id_token.fetch_id_token(auth_req, target_audience)
 
     async def transcribe(self, audio_data: bytes) -> str:
         response = await self.http_client.post(
             self.url + "/transcribe",
-            headers={**self.headers, "Content-Type": "application/octet-stream"},
+            headers={
+                **self.headers,
+                "Authorization": f"Bearer {self.id_token}",
+                "Content-Type": "application/octet-stream",
+            },
             content=audio_data,
             timeout=None,
         )
