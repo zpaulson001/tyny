@@ -8,7 +8,7 @@ from fastapi import HTTPException
 import numpy as np
 from numpy.typing import NDArray
 from app.lib.sse import create_sse_response
-from app.services.transcription import TranscriptionService
+from app.services.transcription import GCPTranscriptionService as TranscriptionService
 from app.services.translation import BaseRemoteTranslationService
 
 

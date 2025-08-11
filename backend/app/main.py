@@ -6,7 +6,7 @@ from app.routers import rooms, languages
 from app.globals import httpx_client
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.services.transcription import TranscriptionService
+from app.services.transcription import GCPTranscriptionService as TranscriptionService
 
 
 @asynccontextmanager
