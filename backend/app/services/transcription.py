@@ -5,6 +5,7 @@ import numpy as np
 from numpy.typing import NDArray
 from app.config import settings
 import google.oauth2.id_token
+import google.auth.transport.requests
 
 
 class BaseRemoteTranscriptionService(ABC):
