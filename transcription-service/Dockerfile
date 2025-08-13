@@ -37,6 +37,8 @@ COPY pyproject.toml uv.lock ./
 
 RUN uv sync --locked
 
+RUN uv add cuda-python
+
 # Copy the model loading script
 COPY load_nemo_model.py ./
 
