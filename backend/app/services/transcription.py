@@ -88,13 +88,16 @@ class GCPTranscriptionService(BaseRemoteTranscriptionService):
         target_audience = self.url
         return google.oauth2.id_token.fetch_id_token(auth_req, target_audience)
 
+    def _get_headers(self):
+        return {
+            "Authorization": f"Bearer {self.id_token}",
+            "Content-Type": "application/octet-stream",
+        }
+
     async def transcribe(self, audio_data: bytes) -> str:
         response = await self.http_client.post(
             self.url + "/transcribe",
-            headers={
-                "Authorization": f"Bearer {self.id_token}",
-                "Content-Type": "application/octet-stream",
-            },
+            headers=self._get_headers(),
             content=audio_data,
             timeout=None,
         )
@@ -103,6 +106,6 @@ class GCPTranscriptionService(BaseRemoteTranscriptionService):
 
     async def wake_up(self):
         res = await self.http_client.get(
-            self.url + "/status", headers=self.headers, timeout=None
+            self.url + "/status", headers=self._get_headers(), timeout=None
         )
         res.raise_for_status()
