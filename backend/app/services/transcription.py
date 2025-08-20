@@ -80,11 +80,7 @@ class BaseTranscriptionService(ABC):
 class GCPTranscriptionService(BaseRemoteTranscriptionService):
     def __init__(self, http_client: httpx.AsyncClient):
         self.http_client = http_client
-        self.url = settings.modal_url
-        self.headers = {
-            "Modal-Key": settings.modal_key,
-            "Modal-Secret": settings.modal_secret,
-        }
+        self.url = settings.transcription_url
         self.id_token = self._get_id_token()
 
     def _get_id_token(self):
@@ -96,7 +92,6 @@ class GCPTranscriptionService(BaseRemoteTranscriptionService):
         response = await self.http_client.post(
             self.url + "/transcribe",
             headers={
-                **self.headers,
                 "Authorization": f"Bearer {self.id_token}",
                 "Content-Type": "application/octet-stream",
             },
