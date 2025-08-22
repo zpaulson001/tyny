@@ -28,6 +28,7 @@ const { setSelectedFile } = useToolbarStore();
 
 // Create a computed property for the input object to make it reactive
 const audioInput = computed(() => ({
+  mode: mode.value,
   deviceId: selectedDevice.value || undefined,
   file: selectedFile.value || undefined,
 }));
