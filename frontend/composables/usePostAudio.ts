@@ -72,10 +72,10 @@ export function usePostAudio(options: TranscriptionOptions) {
         }
 
         // Concatenate the new chunk with the existing buffer
-        const newBuffer = concatenateFloat32Arrays(
+        const newBuffer = concatenateFloat32Arrays([
           fullAudioBuffer,
-          e.data.output.audioChunk
-        );
+          e.data.output.audioChunk,
+        ]);
 
         fullAudioBuffer = newBuffer;
         utteranceSegmenter?.process(
