@@ -56,13 +56,20 @@ function writeString(view: DataView, offset: number, string: string) {
   }
 }
 
-export function concatenateFloat32Arrays(
-  array1: Float32Array,
-  array2: Float32Array
-): Float32Array {
-  const result = new Float32Array(array1.length + array2.length);
-  result.set(array1, 0);
-  result.set(array2, array1.length);
+export function concatenateFloat32Arrays(arrays: Float32Array[]): Float32Array {
+  // Calculate total length
+  const totalLength = arrays.reduce((sum, array) => sum + array.length, 0);
+
+  // Create result array
+  const result = new Float32Array(totalLength);
+
+  // Copy each array into the result
+  let offset = 0;
+  for (const array of arrays) {
+    result.set(array, offset);
+    offset += array.length;
+  }
+
   return result;
 }
 

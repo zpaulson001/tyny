@@ -14,6 +14,10 @@ const { qrSVG } = useQR(roomUrl);
 
 const popRef = ref();
 
+const startStopDisabled = computed(() => {
+  return mode.value === 'File' && !selectedFile.value || mode.value === 'Mic' && !selectedDevice.value;
+});
+
 
 const { clearUtterances } = useUtterancesStore();
 
@@ -24,6 +28,7 @@ const { setSelectedFile } = useToolbarStore();
 
 // Create a computed property for the input object to make it reactive
 const audioInput = computed(() => ({
+  mode: mode.value,
   deviceId: selectedDevice.value || undefined,
   file: selectedFile.value || undefined,
 }));
@@ -114,7 +119,8 @@ const handleCopyClick = async () => {
         <SpeachActivityIcon :speaking="isSpeaking" />
         <Button :icon="streamState === 'streaming' ? 'pi pi-stop' : mode === 'Mic' ? 'pi pi-circle-fill' : 'pi pi-play'"
           :severity="mode === 'Mic' ? 'danger' : undefined" aria-label="Record" @click="handleButtonClick"
-          :loading="streamState === 'startingUp' || streamState === 'connecting'" class="shrink-0" />
+          :loading="streamState === 'startingUp' || streamState === 'connecting'" class="shrink-0"
+          :disabled="startStopDisabled" />
       </div>
     </template>
   </Toolbar>

@@ -11,10 +11,12 @@ interface TranscriptionOptions {
   /** Threshold for speech probability (0-1) */
   input:
     | Ref<{
+        mode: 'Mic' | 'File';
         deviceId?: string;
         file?: File;
       }>
     | {
+        mode: 'Mic' | 'File';
         deviceId?: string;
         file?: File;
       };
@@ -72,10 +74,10 @@ export function usePostAudio(options: TranscriptionOptions) {
         }
 
         // Concatenate the new chunk with the existing buffer
-        const newBuffer = concatenateFloat32Arrays(
+        const newBuffer = concatenateFloat32Arrays([
           fullAudioBuffer,
-          e.data.output.audioChunk
-        );
+          e.data.output.audioChunk,
+        ]);
 
         fullAudioBuffer = newBuffer;
         utteranceSegmenter?.process(
@@ -102,7 +104,15 @@ export function usePostAudio(options: TranscriptionOptions) {
 
       let audioSource: ArrayBuffer | MediaStream;
 
-      if (inputValue.value.file) {
+      if (inputValue.value.mode === 'File' && !inputValue.value.file) {
+        throw new Error('No file selected');
+      }
+
+      if (inputValue.value.mode === 'Mic' && !inputValue.value.deviceId) {
+        throw new Error('No device selected');
+      }
+
+      if (inputValue.value.mode === 'File' && inputValue.value.file) {
         // Convert file to ArrayBuffer
         audioSource = await inputValue.value.file.arrayBuffer();
       } else {

@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import Depends
 from app.services.rooms import SSEManager, RoomsService
 from app.services.transcription import (
-    TranscriptionService,
+    GCPTranscriptionService as TranscriptionService,
     BaseRemoteTranscriptionService,
 )
 from app.globals import httpx_client, sse_manager

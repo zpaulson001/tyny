@@ -29,7 +29,7 @@ export default class UtteranceSegmenter {
 
   process(audioChunk: Float32Array, speechProb: number) {
     // Create a new buffer with space for existing data plus new chunk
-    const newBuffer = concatenateFloat32Arrays(this.audioBuffer, audioChunk);
+    const newBuffer = concatenateFloat32Arrays([this.audioBuffer, audioChunk]);
 
     this.audioBuffer = newBuffer;
 
