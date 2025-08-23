@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI
 from app.lib.dependencies import get_transcription_service
 from app.routers import rooms, languages
 from app.globals import httpx_client
+from app.config import settings
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.services.transcription import GCPTranscriptionService as TranscriptionService
@@ -16,19 +17,10 @@ async def lifespan(app: FastAPI):
     await httpx_client.aclose()
 
 
-origins = [
-    "http://localhost:3000",
-    "http://localhost:8000",
-    "http://localhost:5173",
-    "https://dev.tyny.pages.dev",
-    "https://modal-to-gcp.tyny.pages.dev",
-    "https://tyny.pages.dev",
-]
-
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

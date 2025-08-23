@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     deepl_api_key: str
     deepl_url: str
     transcription_url: str
+    allowed_origins: list[str]
 
 
 logger = logging.getLogger("uvicorn")
